@@ -12,8 +12,8 @@ const AGENT_PORT = parseInt(process.env.AGENT_PORT as string) || 4001;
 const ARBITER_URL = process.env.ARBITER_URL || 'http://localhost:3000';
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const LLM_MODEL = AGENT_NAME === 'Agent1' 
-  ? (process.env.AGENT1_LLM_MODEL || 'gpt-5-mini') 
-  : (process.env.AGENT2_LLM_MODEL || 'gpt-5-nano');
+  ? (process.env.AGENT1_LLM_MODEL || 'gpt-4o') 
+  : (process.env.AGENT2_LLM_MODEL || 'gpt-4o-mini');
 
 const walletKey = AGENT_NAME === 'Agent1' ? 'AGENT1_PRIVATE_KEY' : 'AGENT2_PRIVATE_KEY';
 const connection = new Connection(RPC_URL, 'confirmed');
@@ -87,6 +87,10 @@ app.post('/task', async (req, res) => {
     const score = gameState.players.find((p: any) => p.id === myId)?.score || 0;
     const opponentScore = gameState.players.find((p: any) => p.id !== myId)?.score || 0;
 
+    const agentStrategy = AGENT_NAME === 'Agent1' 
+      ? 'STRATEGY: Play DEFENSIVELY. Counter the opponent\'s most common move. Be predictable to confuse them.'
+      : 'STRATEGY: Play AGGRESSIVELY. Make bold, unpredictable moves. Surprise them constantly.';
+
     const prompt = `You are an elite AI playing Rock Paper Scissors for cryptocurrency.
 
 CURRENT GAME STATE:
@@ -101,15 +105,9 @@ ${opponentMoves.length > 0 ? opponentMoves.slice(-5).join(', ') : 'No history ye
 RECENT ROUNDS:
 ${recentHistory || 'First round'}
 
-STRATEGY NOTES:
-- Analyze opponent's patterns: Do they favor certain moves?
-- Rock beats Scissors, Scissors beats Paper, Paper beats Rock
-- Be unpredictable but also exploit patterns
-- Consider psychology: do they repeat after winning/losing?
-- Behind in score? Time to take risks!
-- Ahead in score? Play safer, counter their patterns
+${agentStrategy}
 
-Choose your move: rock, paper, or scissors
+RESPONSE: Choose rock, paper, or scissors based on your strategy.
 
 Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.`;
 
@@ -118,28 +116,34 @@ Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.`;
     console.log(`   Round ${gameState.round}/9 | Score: ${score} - ${opponentScore}`);
     console.log(`   Model: ${LLM_MODEL}`);
 
+    const agentTemp = AGENT_NAME === 'Agent1' ? 0.3 : 0.7;
     const completion = await openai.chat.completions.create({
       model: LLM_MODEL,
       messages: [
         {
           role: 'system',
-          content: 'You are a strategic AI playing Rock Paper Scissors. Analyze patterns and make smart choices. Respond with ONLY: rock, paper, or scissors'
+          content: 'You are a strategic AI playing Rock Paper Scissors. Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.'
         },
         {
           role: 'user',
           content: prompt
         },
       ],
-      max_completion_tokens: 50,
+      temperature: agentTemp,
+      max_tokens: 10,
     });
 
-    let moveText = completion.choices[0]?.message?.content?.trim().toLowerCase() || '';
-    let move = moveText.replace(/[^a-z]/g, '');
+    // Robustly extract the actual move word from the model response.
+    // Models sometimes reply like "I choose rock." or "Rock!" — use a regex to find the move.
+    let moveText = completion.choices[0]?.message?.content || '';
+    const found = moveText.match(/\b(rock|paper|scissors)\b/i);
+    let move = found ? found[1].toLowerCase() : '';
 
     const validMoves = ['rock', 'paper', 'scissors'];
     if (!validMoves.includes(move)) {
+      console.log(`⚠️  Model response did not contain a valid move: "${moveText.replace(/\n/g, ' ')}"`);
       move = validMoves[Math.floor(Math.random() * 3)];
-      console.log(`⚠️  Invalid response, selecting random: ${move}`);
+      console.log(`   Selected random move: ${move}`);
     }
 
     const moveIcons: Record<string, string> = { rock: '🪨', paper: '📄', scissors: '✂️' };
@@ -217,6 +221,10 @@ app.post('/', async (req, res) => {
           const score = gameState.players.find((p: any) => p.id === myId)?.score || 0;
           const opponentScore = gameState.players.find((p: any) => p.id !== myId)?.score || 0;
 
+          const agentStrategy = AGENT_NAME === 'Agent1' 
+            ? 'STRATEGY: Play DEFENSIVELY. Counter the opponent\'s most common move. Be predictable to confuse them.'
+            : 'STRATEGY: Play AGGRESSIVELY. Make bold, unpredictable moves. Surprise them constantly.';
+
           const prompt = `You are an elite AI playing Rock Paper Scissors for cryptocurrency.
 
 CURRENT GAME STATE:
@@ -231,43 +239,41 @@ ${opponentMoves.length > 0 ? opponentMoves.slice(-5).join(', ') : 'No history ye
 RECENT ROUNDS:
 ${recentHistory || 'First round'}
 
-STRATEGY NOTES:
-- Analyze opponent's patterns: Do they favor certain moves?
-- Rock beats Scissors, Scissors beats Paper, Paper beats Rock
-- Be unpredictable but also exploit patterns
-- Consider psychology: do they repeat after winning/losing?
-- Behind in score? Time to take risks!
-- Ahead in score? Play safer, counter their patterns
+${agentStrategy}
 
-Choose your move: rock, paper, or scissors
+RESPONSE: Choose rock, paper, or scissors based on your strategy.
 
 Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.`;
 
           console.log(`🤔 ${AGENT_NAME} thinking...`);
           console.log(`   Round ${gameState.round} | Score: ${score}-${opponentScore}`);
-
+          const agentTemp = AGENT_NAME === 'Agent1' ? 0.3 : 0.7;
           const completion = await openai.chat.completions.create({
             model: LLM_MODEL,
             messages: [
               {
                 role: 'system',
-                content: 'You are a strategic AI playing Rock Paper Scissors. Analyze patterns and make smart choices. Respond with ONLY: rock, paper, or scissors'
+                content: 'You are a strategic AI playing Rock Paper Scissors. Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.'
               },
               {
                 role: 'user',
                 content: prompt
               }
             ],
-           max_completion_tokens: 50,
-          });
+            temperature: agentTemp,
+            max_tokens: 10,
+          })
 
-          let moveText = completion.choices[0]?.message?.content?.trim().toLowerCase() || '';
-          let move = moveText.replace(/[^a-z]/g, '');
+          // Robustly extract the actual move word from the model response.
+          let moveText = completion.choices[0]?.message?.content || '';
+          const found = moveText.match(/\b(rock|paper|scissors)\b/i);
+          let move = found ? found[1].toLowerCase() : '';
 
           const validMoves = ['rock', 'paper', 'scissors'];
           if (!validMoves.includes(move)) {
+            console.log(`⚠️  Model response did not contain a valid move: "${moveText.replace(/\n/g, ' ')}"`);
             move = validMoves[Math.floor(Math.random() * 3)];
-            console.log(`⚠️  AI gave invalid move, choosing random: ${move}`);
+            console.log(`   Selected random move: ${move}`);
           }
 
           const moveIcons: Record<string, string> = { rock: '🪨', paper: '📄', scissors: '✂️' };
