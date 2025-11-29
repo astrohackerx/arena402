@@ -99,7 +99,7 @@ export class RockPaperScissorsGame {
     this.state = {
       gameId,
       round: 0,
-      maxRounds: 5,
+      maxRounds: 9,
       players: players.map(p => ({
         id: p.id,
         name: p.name,
@@ -115,8 +115,10 @@ export class RockPaperScissorsGame {
     this.state.status = 'playing';
     this.startNewRound();
     const comment = GAME_START_COMMENTS[Math.floor(Math.random() * GAME_START_COMMENTS.length)];
-    console.log(`🎮 Game started! ${comment}`);
-    console.log(`   First to 3 wins takes it all!\n`);
+    console.log(`\n${'═'.repeat(70)}`);
+    console.log(`🎮 GAME STARTED! ${comment}`);
+    console.log(`   Match Format: First to 5 wins | Max 9 rounds`);
+    console.log(`${'═'.repeat(70)}\n`);
   }
 
   private startNewRound() {
@@ -192,8 +194,12 @@ export class RockPaperScissorsGame {
       results[player1.id] = 'tie';
       results[player2.id] = 'tie';
       commentary = `${MOVE_ICONS[move1]} vs ${MOVE_ICONS[move2]} - ${TIE_COMMENTARY[Math.floor(Math.random() * TIE_COMMENTARY.length)]}`;
-      console.log(`\n🤝 Round ${round.roundNumber}: TIE!`);
-      console.log(`   ${commentary}\n`);
+      console.log(`\n${'─'.repeat(60)}`);
+      console.log(`🤝 ROUND ${round.roundNumber}: TIE GAME!`);
+      console.log(`   ${MOVE_ICONS[move1]} ${move1.toUpperCase()} vs ${move2.toUpperCase()} ${MOVE_ICONS[move2]}`);
+      console.log(`   ${commentary}`);
+      console.log(`   Score: ${player1.name} ${player1.score} ━━━ ${player2.score} ${player2.name}`);
+      console.log(`${'─'.repeat(60)}\n`);
     } else if (result === 1) {
       // Player 1 wins
       results[player1.id] = 'win';
@@ -201,10 +207,12 @@ export class RockPaperScissorsGame {
       winnerId = player1.id;
       player1.score++;
       commentary = `${MOVE_ICONS[move1]} ${player1.name} destroys ${MOVE_ICONS[move2]} ${player2.name}! ${WIN_COMMENTARY[Math.floor(Math.random() * WIN_COMMENTARY.length)]}`;
-      console.log(`\n🏆 Round ${round.roundNumber}: ${player1.name} WINS!`);
-      console.log(`   ${move1} beats ${move2}`);
+      console.log(`\n${'─'.repeat(60)}`);
+      console.log(`🏆 ROUND ${round.roundNumber}: ${player1.name} WINS!`);
+      console.log(`   ${MOVE_ICONS[move1]} ${move1.toUpperCase()} beats ${move2.toUpperCase()} ${MOVE_ICONS[move2]}`);
       console.log(`   ${commentary}`);
-      console.log(`   Score: ${player1.name} ${player1.score} - ${player2.score} ${player2.name}\n`);
+      console.log(`   Score: ${player1.name} ${player1.score} ━━━ ${player2.score} ${player2.name}`);
+      console.log(`${'─'.repeat(60)}\n`);
     } else {
       // Player 2 wins
       results[player1.id] = 'lose';
@@ -212,10 +220,12 @@ export class RockPaperScissorsGame {
       winnerId = player2.id;
       player2.score++;
       commentary = `${MOVE_ICONS[move2]} ${player2.name} crushes ${MOVE_ICONS[move1]} ${player1.name}! ${WIN_COMMENTARY[Math.floor(Math.random() * WIN_COMMENTARY.length)]}`;
-      console.log(`\n🏆 Round ${round.roundNumber}: ${player2.name} WINS!`);
-      console.log(`   ${move2} beats ${move1}`);
+      console.log(`\n${'─'.repeat(60)}`);
+      console.log(`🏆 ROUND ${round.roundNumber}: ${player2.name} WINS!`);
+      console.log(`   ${MOVE_ICONS[move2]} ${move2.toUpperCase()} beats ${move1.toUpperCase()} ${MOVE_ICONS[move1]}`);
       console.log(`   ${commentary}`);
-      console.log(`   Score: ${player1.name} ${player1.score} - ${player2.score} ${player2.name}\n`);
+      console.log(`   Score: ${player1.name} ${player1.score} ━━━ ${player2.score} ${player2.name}`);
+      console.log(`${'─'.repeat(60)}\n`);
     }
 
     const completedRound: CompletedRound = {
@@ -255,8 +265,10 @@ export class RockPaperScissorsGame {
       this.state.winnerId = player1.id;
       this.state.status = 'finished';
       const comment = GAME_END_COMMENTS[Math.floor(Math.random() * GAME_END_COMMENTS.length)];
-      console.log(`\n🎉 GAME OVER! ${player1.name} WINS! ${comment}`);
-      console.log(`   Final Score: ${player1.name} ${player1.score} - ${player2.score} ${player2.name}\n`);
+      console.log(`\n${'═'.repeat(70)}`);
+      console.log(`🎉🎊 GAME OVER! ${player1.name} DOMINATES! ${comment}`);
+      console.log(`   Final Score: ${player1.name} ${player1.score} ━━━ ${player2.score} ${player2.name}`);
+      console.log(`${'═'.repeat(70)}\n`);
       return true;
     }
 
@@ -264,8 +276,10 @@ export class RockPaperScissorsGame {
       this.state.winnerId = player2.id;
       this.state.status = 'finished';
       const comment = GAME_END_COMMENTS[Math.floor(Math.random() * GAME_END_COMMENTS.length)];
-      console.log(`\n🎉 GAME OVER! ${player2.name} WINS! ${comment}`);
-      console.log(`   Final Score: ${player1.name} ${player1.score} - ${player2.score} ${player2.name}\n`);
+      console.log(`\n${'═'.repeat(70)}`);
+      console.log(`🎉🎊 GAME OVER! ${player2.name} DOMINATES! ${comment}`);
+      console.log(`   Final Score: ${player1.name} ${player1.score} ━━━ ${player2.score} ${player2.name}`);
+      console.log(`${'═'.repeat(70)}\n`);
       return true;
     }
 

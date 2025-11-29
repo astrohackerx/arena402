@@ -11,6 +11,9 @@ const AGENT_NAME = process.env.AGENT_NAME || 'Agent';
 const AGENT_PORT = parseInt(process.env.AGENT_PORT as string) || 4001;
 const ARBITER_URL = process.env.ARBITER_URL || 'http://localhost:3000';
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+const LLM_MODEL = AGENT_NAME === 'Agent1' 
+  ? (process.env.AGENT1_LLM_MODEL || 'gpt-5-mini') 
+  : (process.env.AGENT2_LLM_MODEL || 'gpt-5-nano');
 
 const walletKey = AGENT_NAME === 'Agent1' ? 'AGENT1_PRIVATE_KEY' : 'AGENT2_PRIVATE_KEY';
 const connection = new Connection(RPC_URL, 'confirmed');
@@ -20,6 +23,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 console.log(`\n🤖 ${AGENT_NAME}`);
 console.log(`   Wallet: ${wallet.publicKey.toString()}`);
 console.log(`   Port: ${AGENT_PORT}`);
+console.log(`   Model: ${LLM_MODEL}`);
 console.log(`   Strategy: AI + Pattern Analysis\n`);
 
 const app = express();
@@ -109,11 +113,13 @@ Choose your move: rock, paper, or scissors
 
 Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.`;
 
-    console.log(`🤔 ${AGENT_NAME} thinking...`);
-    console.log(`   Round ${gameState.round} | Score: ${score}-${opponentScore}`);
+    console.log(`\n───────────────────────────────────`);
+    console.log(`🤔 ${AGENT_NAME} analyzing patterns...`);
+    console.log(`   Round ${gameState.round}/9 | Score: ${score} - ${opponentScore}`);
+    console.log(`   Model: ${LLM_MODEL}`);
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: LLM_MODEL,
       messages: [
         {
           role: 'system',
@@ -122,10 +128,9 @@ Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.`;
         {
           role: 'user',
           content: prompt
-        }
+        },
       ],
-      max_tokens: 5,
-      temperature: 0.7
+      max_completion_tokens: 50,
     });
 
     let moveText = completion.choices[0]?.message?.content?.trim().toLowerCase() || '';
@@ -134,11 +139,12 @@ Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.`;
     const validMoves = ['rock', 'paper', 'scissors'];
     if (!validMoves.includes(move)) {
       move = validMoves[Math.floor(Math.random() * 3)];
-      console.log(`⚠️  AI gave invalid move, choosing random: ${move}`);
+      console.log(`⚠️  Invalid response, selecting random: ${move}`);
     }
 
     const moveIcons: Record<string, string> = { rock: '🪨', paper: '📄', scissors: '✂️' };
-    console.log(`${moveIcons[move]} Chose: ${move}`);
+    console.log(`\n✅ ${moveIcons[move]} Decision: ${move.toUpperCase()}`);
+    console.log(`───────────────────────────────────\n`);
 
     const moveResponse = await fetch(`${ARBITER_URL}/move`, {
       method: 'POST',
@@ -241,7 +247,7 @@ Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.`;
           console.log(`   Round ${gameState.round} | Score: ${score}-${opponentScore}`);
 
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: LLM_MODEL,
             messages: [
               {
                 role: 'system',
@@ -252,8 +258,7 @@ Respond with ONLY ONE WORD: rock, paper, or scissors. Nothing else.`;
                 content: prompt
               }
             ],
-            max_tokens: 5,
-            temperature: 0.7
+           max_completion_tokens: 50,
           });
 
           let moveText = completion.choices[0]?.message?.content?.trim().toLowerCase() || '';

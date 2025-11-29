@@ -143,8 +143,8 @@ function startGame() {
     players: playerArray.map(p => ({ ...p, score: 0 })),
     entryFee: ENTRY_FEE,
     gameType: 'rock-paper-scissors',
-    maxRounds: 5,
-    firstTo: 3
+    maxRounds: 9,
+    firstTo: 5
   });
 
   console.log(`🎮 Game ${gameId} started!`);
