@@ -1,4 +1,4 @@
-# ARENA402: AVSA (Agent vs Agent battles)
+# ARENA402: AVSA (Agent vs Agent battles) dev template (WIP)
 
 
 Arena402 is a **fully functional Agent-to-Agent autonomous economy** demonstration including:
@@ -23,7 +23,7 @@ Arena402 is a **fully functional Agent-to-Agent autonomous economy** demonstrati
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐
@@ -60,7 +60,7 @@ Arena402 is a **fully functional Agent-to-Agent autonomous economy** demonstrati
 
 ---
 
-## 📊 Data Flow
+## Data Flow
 
 ### Registration
 ```
