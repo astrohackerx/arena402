@@ -1,352 +1,159 @@
-# ARENA402: AVSA (Agent vs Agent battles)
+# Arena402 - AI Rock Paper Scissors
 
+An autonomous AI battle arena where GPT-powered agents compete in Rock Paper Scissors using Solana blockchain payments via the spl402 protocol.
 
-Arena402 is a **fully functional Agent-to-Agent autonomous economy** demonstration including:
+## How It Works
 
-1. ✅ **SPL402 Micropayment Protocol**
-   - Real Solana wallets
-   - Blockchain-verified payments
-   - Entry fees validate participation
-   - No intermediaries needed
+### Architecture
 
-2. ✅ **Autonomous Agent Interaction**
-   - Two separate AI systems (OpenAI GPT-4)
-   - Real-time decision making
-   - Transparent move choices
-   - Deterministic outcome resolution
+**Arbiter (Game Server)**
+- Runs the game server on port 3000
+- Manages player registration with spl402 payment verification
+- Coordinates matches between AI agents
+- Handles prize distribution via Solana transactions
+- Enforces game rules and scoring
 
-3. ✅ **Transparent Prize Distribution**
-   - Decentralized economy mechanics
-   - Pool from entry fees
-   - Winner-takes-all or distribution rules
-   - On-chain settlement with proof
+**Agents (AI Players)**
+- Each agent runs on its own port (4001, 4002)
+- Uses OpenAI GPT models for strategic decision making
+- Analyzes opponent patterns and game history
+- Automatically pays entry fees using spl402
+- Receives game tasks via webhooks
 
----
+**Communication Flow**
+1. Agents register with the arbiter by paying the entry fee (0.001 SOL)
+2. Arbiter verifies payment through spl402 protocol
+3. Game starts when two agents are registered
+4. Arbiter sends game state to agents via webhook
+5. Agents analyze the situation using AI and submit moves
+6. Arbiter determines winner and distributes prize pool
 
-## 🏗️ Architecture
+### Game Rules
 
-```
-┌─────────────────┐
-│   Web Browser   │
-│   (React App)   │
-    │
-└────────┬────────┘
-         │ SSE Events
-         ↓
-┌─────────────────┐
-│    Arbiter      │  Game Orchestrator
-│ (Express Server)│  - Payment validation (spl402)
-│  Port: 3000     │  - Game logic
-│                 │  - Event broadcasting
-└────────┬────────┘
-    ↙    ↓    ↘
-   ↙     ↓     ↘
-  ↙      ↓      ↘
-┌────────┐  ┌────────┐
-│ Agent1 │  │ Agent2 │
-│ (A2A)  │  │ (A2A)  │
-│4001    │  │ 4002   │
-└────────┘  └────────┘
-  OpenAI      OpenAI
-  GPT-4       GPT-4
+- First to 5 wins takes the match (maximum 9 rounds)
+- Entry fee: 0.001 SOL per agent
+- Winner receives 95% of prize pool (0.0019 SOL)
+- Arbiter keeps 5% service fee
+- Ties don't count toward score
 
-│
-└─> Solana Network (Devnet)
-    - SPL402 Token System
-    - Wallet Interactions
-    - Payment Settlement
-    - Prize Distribution
-```
+### AI Strategy
 
----
+Each agent uses:
+- **Pattern recognition** - analyzes opponent's previous moves
+- **Adaptive strategy** - adjusts based on game state and score
+- **GPT intelligence** - different models for different playing styles
+- **Move history** - tracks full game progression for decision making
 
-## 📊 Data Flow
+## Installation
 
-### Registration
-```
-Agent → POST /register
-       ↓ (with spl402 payment)
-Arbiter validates & stores
-       ↓
-Broadcasts: player_joined event
-       ↓
-Dashboard: Shows payment card with explorer link
-```
-
-### Game Start
-```
-When 2 players registered:
-       ↓
-Arbiter creates game instance
-       ↓
-Broadcasts: game_started event
-       ↓
-Dashboard: Shows scoreboard & decision section
-```
-
-### Round Progress
-```
-Arbiter → POST /move to each agent
-       ↓
-Agent chooses move (rock/paper/scissors)
-       ↓
-Both moves returned
-       ↓
-Arbiter calculates winner
-       ↓
-Updates scores & game state
-       ↓
-Broadcasts: round_result event
-       ↓
-Dashboard: Updates scoreboard, history, event log
-```
-
-### Game End
-```
-One agent reaches 3 wins
-       ↓
-Arbiter calculates prize
-       ↓
-SPL402 transfers prize to winner wallet
-       ↓
-Broadcasts: game_over event
-       ↓
-Dashboard: Shows winner, prize amount, explorer link
-```
-
----
-
-## 🔑 Key Components
-
-### `/server/arbiter.ts` (Game Controller)
-**Role**: Central orchestrator
-- Validates SPL402 payments
-- Manages game lifecycle
-- Coordinates agent moves
-- Broadcasts SSE events
-- Handles prize distribution
-
-**Key Endpoints**:
-- `POST /register` - Agent registration with payment
-- `POST /move` - Move submission
-- `GET /events` - SSE stream
-- `GET /health` - Status check
-
-**Key Functions**:
-```typescript
-broadcast(event: string, data: any) // Send to all connected clients
-startGame() // Initialize game when 2 players ready
-processMove(move) // Calculate round results
-distributePrize(winner) // Pay winner on-chain
-```
-
-### `/server/agent.ts` (AI Player)
-**Role**: Autonomous decision maker
-- Registers with entry fee (SPL402)
-- Receives move requests via A2A SDK
-- Uses OpenAI GPT-4 for decisions
-- Submits moves back to arbiter
-- Receives game state updates
-
-**Key Logic**:
-```typescript
-const decision = await openai.chat.completions.create({
-  model: "gpt-4",
-  messages: [
-    { role: "system", content: gamePrompt },
-    { role: "user", content: currentGameState }
-  ]
-})
-return decideRockPaperScissors(decision)
-```
-
-### `/server/game.ts` (Game Rules)
-**Role**: Game mechanics engine
-- Rock-paper-scissors logic
-- Score calculation
-- Round management
-- Public state generation
-
-**Key Methods**:
-```typescript
-playRound(move1, move2) // Calculate winner
-getPublicState() // Return visible game state
-getScore() // Current scores
-isGameOver() // Check win condition
-```
-
-### `/client/src/components/GameDashboard.tsx` (UI)
-**Role**: Real-time visualization
-- Connects to arbiter via SSE
-- Updates on all events
-- Displays game state
-- Links to blockchain
-- Manages local UI state
-
-**Key Hooks**:
-```typescript
-useEffect(() => {
-  const eventSource = new EventSource('/events')
-  eventSource.addEventListener('player_joined', ...)
-  eventSource.addEventListener('game_started', ...)
-  eventSource.addEventListener('round_result', ...)
-  eventSource.addEventListener('game_over', ...)
-})
-```
-
----
-
-## 🔗 Blockchain Integration
-
-### SPL402 Protocol
-- **Entry Fee**: 0.001 SOL per agent
-- **Payment Method**: Token-based micropayment
-- **Validation**: On-chain verification
-- **Security**: No trusted intermediary
-
-### Solana Devnet
-- **Network**: Devnet (free testnet)
-- **RPC**: https://api.devnet.solana.com
-- **Faucet**: Free SOL from faucet
-- **Explorer**: https://explorer.solana.com/?cluster=devnet
-
-### Prize Distribution
-- **Mechanism**: Winner wallet receives SOL
-- **Source**: Entry fee pool
-- **Verification**: Transaction ID linkable
-- **Proof**: Public blockchain history
-
----
-
-## 📈 Real-Time Communication
-
-### Server-Sent Events (SSE)
-```
-Client: GET http://localhost:3000/events
-Server: Sets content-type: text/event-stream
-
-Server → Client:
-event: player_joined
-data: {"name":"Agent1","wallet":"xxx..."}
-
-event: game_started
-data: {"gameId":"game-123","players":[...]}
-
-event: round_result
-data: {"round":1,"agent1Move":"rock","agent2Move":"paper","winner":"Agent2"}
-
-event: game_over
-data: {"winner":"Agent2","prize":"0.0019","transactionId":"tx123"}
-```
-
-### Event Types
-| Event | Frequency | Payload |
-|-------|-----------|---------|
-| `player_joined` | Once per agent | Player name, wallet, tx |
-| `game_started` | Once per game | Game ID, players, rules |
-| `round_result` | Every round | Round #, moves, winner, score |
-| `game_over` | Once per game | Winner, prize, settlement tx |
-
----
-
-## 🧪 Testing & Verification
-
-### Manual Testing Checklist
-- [x] Both agents register successfully
-- [x] Entry fees deducted correctly
-- [x] Game starts when 2 agents registered
-- [x] Moves submitted and processed
-- [x] Scores calculated accurately
-- [x] Winner determined correctly
-- [x] Prize paid to winner wallet
-- [x] All events broadcast to dashboard
-- [x] Real-time updates visible
-- [x] Explorer links work
-- [x] Mobile responsive design
-
-### Test a Game
 ```bash
-# 1. Start servers
-npm run arbiter &
-npm run agent1 &
-npm run agent2 &
-npm run preview &
-
-# 2. Open dashboard
-# http://localhost:4173/
-
-# 3. Observe:
-# - Player registration
-# - Game start
-# - Round progress
-# - Final winner
-# - Prize payment
-
-# 4. Verify blockchain
-# - Click explorer links
-# - Confirm transactions
-# - Check wallet balances
+npm install
 ```
 
----
+## Configuration
 
-## 🎓 Key Learning Points
+Create a `.env` file with the following:
 
-### What This Demonstrates
-
-1. **Micropayment Protocol Viability**
-   - SPL402 validates participation
-   - Real transactions on public blockchain
-   - Eliminates payment fraud
-   - No intermediary needed
-
-2. **Agent Autonomy**
-   - Agents make independent decisions
-   - No script/bot detection issues
-   - Real AI reasoning applied
-   - Verifiable outcomes
-
-3. **Decentralized Economy**
-   - Direct agent-to-agent interaction
-   - Transparent payment flow
-   - Democratic outcome resolution
-   - Trustless design
-
-
----
-
-
-## 📞 Support & Questions
-
-**For Technical Issues:**
 ```bash
-# Check arbiter logs
-tail -f arbiter.log
+# Solana Network
+SOLANA_NETWORK=devnet
+SOLANA_RPC_URL=https://api.devnet.solana.com
 
-# Verify agents running
-curl http://localhost:4001/
-curl http://localhost:4002/
+# Arbiter (Game Server) Wallet
+ARBITER_WALLET=<your_arbiter_wallet_address>
+ARBITER_PRIVATE_KEY=<your_arbiter_private_key>
+ARBITER_PORT=3000
 
-# Test SSE connection
-curl http://localhost:3000/events
+# Agent 1 Wallet (AI Player)
+AGENT1_WALLET=<agent1_wallet_address>
+AGENT1_PRIVATE_KEY=<agent1_private_key>
+AGENT1_LLM_MODEL=gpt-4o
 
-# Check wallet balance
-# (Use Phantom wallet connected to devnet)
+# Agent 2 Wallet (AI Player)
+AGENT2_WALLET=<agent2_wallet_address>
+AGENT2_PRIVATE_KEY=<agent2_private_key>
+AGENT2_LLM_MODEL=gpt-4o-mini
+
+# OpenAI API Key
+OPENAI_API_KEY=<your_openai_api_key>
+
+# Game Configuration
+ENTRY_FEE=0.001
+ARBITER_URL=http://localhost:3000
 ```
 
-**For Demo Questions:**
-- Event log shows everything happening
-- Timestamps prove real-time operation
-- Explorer links verify blockchain facts
-- Code is transparent (full source available)
+### Wallet Setup
 
----
+1. Generate three Solana wallets (arbiter + 2 agents)
+2. Fund all wallets with devnet SOL using [Solana faucet](https://faucet.solana.com/)
+3. Add wallet addresses and private keys to `.env`
 
-## 🎉 Conclusion
+## Launch
 
-Arena402 is a **production-ready demonstration** of:
-- Blockchain-based micropayments
-- Autonomous agent economies
-- Decentralized autonomous organizations (DAOs)
-- Real-time blockchain-backed UIs
+Open three terminal windows and run:
 
+**Terminal 1 - Start Arbiter:**
+```bash
+npm run arbiter
+```
+
+**Terminal 2 - Start Agent 1:**
+```bash
+npm run agent1
+```
+
+**Terminal 3 - Start Agent 2:**
+```bash
+npm run agent2
+```
+
+The game will automatically start when both agents are registered and paid.
+
+## Technology Stack
+
+- **Blockchain**: Solana (devnet)
+- **Payment Protocol**: spl402
+- **AI Models**: OpenAI GPT-4o / GPT-4o-mini
+- **Backend**: Node.js + Express + TypeScript
+- **Wallet**: @solana/web3.js
+- **Communication**: Webhook-based task distribution
+
+## API Endpoints
+
+### Arbiter
+
+- `POST /register` - Register agent and process payment
+- `POST /move` - Submit game move
+- `GET /health` - Health check
+
+### Agent
+
+- `POST /task` - Receive game tasks from arbiter
+- `GET /health` - Agent status and statistics
+- `GET /stats` - Game statistics
+- `GET /capabilities` - Agent capabilities
+
+## Project Structure
+
+```
+├── arbiter.ts           # Game server and payment coordinator
+├── agent.ts             # AI agent implementation
+├── agent-strategy.ts    # AI decision-making logic
+├── game.ts              # Rock Paper Scissors game logic
+├── error-handler.ts     # Blockchain error handling
+├── rate-limiter.ts      # Request throttling
+├── stats.ts             # Player statistics tracking
+├── validation.ts        # Input validation
+└── package.json         # Dependencies and scripts
+```
+
+## Development
+
+Build and verify TypeScript:
+```bash
+npx tsc --noEmit
+```
+
+## License
+
+MIT
