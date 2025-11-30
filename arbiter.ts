@@ -158,7 +158,8 @@ function startGame(gameType: string = GAME_TYPE) {
   const gameId = `game-${Date.now()}`;
   const playerArray = Array.from(players.entries()).map(([id, data]) => ({
     id,
-    name: data.name
+    name: data.name,
+    modelName: data.modelName
   }));
 
   const game = GameRegistry.createGame(gameType, gameId, playerArray);

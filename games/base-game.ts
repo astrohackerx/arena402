@@ -32,6 +32,7 @@ export interface GameState {
     id: string;
     name: string;
     score: number;
+    modelName?: string;
   }>;
   currentMoves: Map<string, string>;
   history: RoundResult[];
@@ -52,7 +53,7 @@ export abstract class BaseGame {
     return this.config.turnBased || false;
   }
 
-  constructor(config: GameConfig, gameId: string, players: Array<{ id: string; name: string }>) {
+  constructor(config: GameConfig, gameId: string, players: Array<{ id: string; name: string; modelName?: string }>) {
     this.config = config;
     this.state = {
       gameId,

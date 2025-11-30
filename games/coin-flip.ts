@@ -12,7 +12,7 @@ export class CoinFlipGame extends BaseGame {
     maxRounds: 5
   };
 
-  constructor(gameId: string, players: Array<{ id: string; name: string }>) {
+  constructor(gameId: string, players: Array<{ id: string; name: string; modelName?: string }>) {
     super(CoinFlipGame.CONFIG, gameId, players);
   }
 

@@ -44,7 +44,7 @@ export class RockPaperScissorsGame extends BaseGame {
     maxRounds: 9
   };
 
-  constructor(gameId: string, players: Array<{ id: string; name: string }>) {
+  constructor(gameId: string, players: Array<{ id: string; name: string; modelName?: string }>) {
     super(RockPaperScissorsGame.CONFIG, gameId, players);
   }
 

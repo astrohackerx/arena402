@@ -43,7 +43,7 @@ export class TicTacToeGame extends BaseGame {
     turnBased: true
   };
 
-  constructor(gameId: string, players: Array<{ id: string; name: string }>) {
+  constructor(gameId: string, players: Array<{ id: string; name: string; modelName?: string }>) {
     super(TicTacToeGame.CONFIG, gameId, players);
     this.board = Array(9).fill(null);
     this.roundsWon = new Map();
@@ -131,7 +131,8 @@ export class TicTacToeGame extends BaseGame {
     this.board[position] = symbol;
 
     const player = this.findPlayerById(playerId)!;
-    console.log(`\n${SYMBOLS[symbol]} ${player.name} plays position ${parseInt(move)}`);
+    const modelDisplay = player.modelName ? ` (${player.modelName})` : '';
+    console.log(`\n${SYMBOLS[symbol]} ${player.name}${modelDisplay} plays position ${parseInt(move)}`);
     console.log(this.drawBoard());
 
     const { winner: winnerSymbol, line: winLine } = this.checkWinner();
@@ -146,7 +147,8 @@ export class TicTacToeGame extends BaseGame {
         const winnerPlayer = this.findPlayerById(winnerId)!;
 
         console.log(this.drawBoard(winLine));
-        console.log(`\n🎉 ${SYMBOLS[winnerSymbol as keyof typeof SYMBOLS]} ${winnerPlayer.name} WINS THIS ROUND!\n`);
+        const modelDisplay = winnerPlayer.modelName ? ` (${winnerPlayer.modelName})` : '';
+        console.log(`\n🎉 ${SYMBOLS[winnerSymbol as keyof typeof SYMBOLS]} ${winnerPlayer.name}${modelDisplay} WINS THIS ROUND!\n`);
 
         const roundsWon = (this.roundsWon.get(winnerId) || 0) + 1;
         this.roundsWon.set(winnerId, roundsWon);
@@ -219,9 +221,12 @@ export class TicTacToeGame extends BaseGame {
         const loser = this.state.players.find(p => p.id !== playerId)!;
         const winnerSymbol = this.playerSymbols.get(playerId)!;
 
+        const winnerModel = winner.modelName ? ` (${winner.modelName})` : '';
+        const loserModel = loser.modelName ? ` (${loser.modelName})` : '';
+
         console.log(`\n${'═'.repeat(70)}`);
-        console.log(`🏆 MATCH WINNER: ${SYMBOLS[winnerSymbol]} ${winner.name}! 🏆`);
-        console.log(`   Final Score: ${winner.name} ${this.roundsWon.get(winner.id)} ━━━ ${this.roundsWon.get(loser.id)} ${loser.name}`);
+        console.log(`🏆 MATCH WINNER: ${SYMBOLS[winnerSymbol]} ${winner.name}${winnerModel}! 🏆`);
+        console.log(`   Final Score: ${winner.name}${winnerModel} ${this.roundsWon.get(winner.id)} ━━━ ${this.roundsWon.get(loser.id)} ${loser.name}${loserModel}`);
         console.log(`${'═'.repeat(70)}\n`);
 
         return playerId;
@@ -238,9 +243,12 @@ export class TicTacToeGame extends BaseGame {
         const loser = this.state.players.find(p => p.id !== winnerId)!;
         const winnerSymbol = this.playerSymbols.get(winnerId)!;
 
+        const winnerModel = winner.modelName ? ` (${winner.modelName})` : '';
+        const loserModel = loser.modelName ? ` (${loser.modelName})` : '';
+
         console.log(`\n${'═'.repeat(70)}`);
-        console.log(`🏆 MATCH WINNER: ${SYMBOLS[winnerSymbol]} ${winner.name}! 🏆`);
-        console.log(`   Final Score: ${winner.name} ${entries[0][1]} ━━━ ${entries[1][1]} ${loser.name}`);
+        console.log(`🏆 MATCH WINNER: ${SYMBOLS[winnerSymbol]} ${winner.name}${winnerModel}! 🏆`);
+        console.log(`   Final Score: ${winner.name}${winnerModel} ${entries[0][1]} ━━━ ${entries[1][1]} ${loser.name}${loserModel}`);
         console.log(`${'═'.repeat(70)}\n`);
 
         return winnerId;
