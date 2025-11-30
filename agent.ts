@@ -3,29 +3,39 @@ import OpenAI from 'openai';
 import { Connection, Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { config } from 'dotenv';
-import { decideMove, logMoveDecision } from './agent-strategy.js';
+import { StrategyRegistry } from './strategies/strategy-registry.js';
 import { safeGetBalance, safeSendTransaction, handleBlockchainError } from './error-handler.js';
 import { createRateLimiter } from './rate-limiter.js';
 
-// Load environment variables
 config({ path: '.env' });
 
 const AGENT_NAME = process.env.AGENT_NAME || 'Agent';
 const AGENT_PORT = parseInt(process.env.AGENT_PORT as string) || 4001;
 const ARBITER_URL = process.env.ARBITER_URL || 'http://localhost:3000';
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-const LLM_MODEL = AGENT_NAME === 'Agent1' 
-  ? (process.env.AGENT1_LLM_MODEL || 'gpt-4o') 
+
+const PROVIDER = AGENT_NAME === 'Agent1'
+  ? (process.env.AGENT1_PROVIDER || 'openai')
+  : (process.env.AGENT2_PROVIDER || 'openai');
+const LLM_MODEL = AGENT_NAME === 'Agent1'
+  ? (process.env.AGENT1_LLM_MODEL || 'gpt-4o')
   : (process.env.AGENT2_LLM_MODEL || 'gpt-4o-mini');
 
 const walletKey = AGENT_NAME === 'Agent1' ? 'AGENT1_PRIVATE_KEY' : 'AGENT2_PRIVATE_KEY';
 const connection = new Connection(RPC_URL, 'confirmed');
 const wallet = Keypair.fromSecretKey(bs58.decode(process.env[walletKey]!));
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const llmClient = PROVIDER === 'openrouter'
+  ? new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1'
+    })
+  : new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 console.log(`\n🤖 ${AGENT_NAME}`);
 console.log(`   Wallet: ${wallet.publicKey.toString()}`);
 console.log(`   Port: ${AGENT_PORT}`);
+console.log(`   Provider: ${PROVIDER}`);
 console.log(`   Model: ${LLM_MODEL}`);
 console.log(`   Strategy: AI + Pattern Analysis\n`);
 
@@ -53,12 +63,19 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
   }
 
   currentGameId = gameState.gameId;
+  const gameType = gameState.gameType || 'rock-paper-scissors';
+
+  const strategy = StrategyRegistry.getStrategy(gameType, llmClient, AGENT_NAME, LLM_MODEL);
+  if (!strategy) {
+    throw new Error(`No strategy available for game type: ${gameType}`);
+  }
+
+  const decision = await strategy.decideMove(gameState, myAgentId);
 
   const score = gameState.players.find((p: any) => p.id === myAgentId)?.score || 0;
   const opponentScore = gameState.players.find((p: any) => p.id !== myAgentId)?.score || 0;
 
-  const decision = await decideMove(openai, gameState, myAgentId, AGENT_NAME, LLM_MODEL);
-  logMoveDecision(AGENT_NAME, decision.move, gameState.round, `Round ${gameState.round}/9 | Score: ${score} - ${opponentScore} | Model: ${LLM_MODEL}`);
+  console.log(`   Round ${gameState.round}/${gameState.maxRounds} | Score: ${score} - ${opponentScore}`);
 
   const moveResponse = await fetch(`${ARBITER_URL}/move`, {
     method: 'POST',
@@ -135,6 +152,12 @@ app.listen(AGENT_PORT, async () => {
 
   setTimeout(async () => {
     try {
+      // Test LLM connection first
+      const strategy = StrategyRegistry.getStrategy('rock-paper-scissors', llmClient, AGENT_NAME, LLM_MODEL);
+      if (strategy) {
+        await strategy.testLLMConnection();
+      }
+
       console.log(`💰 Checking wallet balance...`);
       const balance = await safeGetBalance(connection, wallet.publicKey);
       const solBalance = balance / LAMPORTS_PER_SOL;

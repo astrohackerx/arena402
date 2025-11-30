@@ -3,7 +3,8 @@ import cors from 'cors';
 import { createServer, createExpressMiddleware } from 'spl402';
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { RockPaperScissorsGame } from './game.js';
+import { BaseGame } from './games/base-game.js';
+import { GameRegistry } from './games/game-registry.js';
 import { config } from 'dotenv';
 import { validateRegistration, validateMoveRequest, ValidationError } from './validation.js';
 import { safeSendTransaction, handleBlockchainError } from './error-handler.js';
@@ -17,6 +18,7 @@ const PORT = process.env.ARBITER_PORT || 3000;
 const ENTRY_FEE = parseFloat(process.env.ENTRY_FEE || '0.001');
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const NETWORK = (process.env.SOLANA_NETWORK || 'devnet') as 'mainnet-beta' | 'devnet' | 'testnet';
+const GAME_TYPE = process.env.GAME_TYPE || 'rock-paper-scissors';
 
 const app = express();
 app.use(cors());
@@ -37,10 +39,16 @@ if (!privateKeyString || typeof privateKeyString !== 'string') {
 }
 const wallet = Keypair.fromSecretKey(bs58.decode(privateKeyString));
 
+const gameConfig = GameRegistry.getConfig(GAME_TYPE);
+if (!gameConfig) {
+  throw new Error(`Invalid GAME_TYPE in .env: ${GAME_TYPE}. Available: ${GameRegistry.getAllGames().map(g => g.id).join(', ')}`);
+}
+
 console.log(`\n🏛️  ARENA402 ARBITER`);
 console.log(`   Wallet: ${wallet.publicKey.toString()}`);
 console.log(`   Network: ${NETWORK}`);
 console.log(`   Entry Fee: ${ENTRY_FEE} SOL`);
+console.log(`   Game: ${gameConfig.name}`);
 console.log(`   Using: Official spl402 SDK\n`);
 
 const spl402Server = createServer({
@@ -50,6 +58,7 @@ const spl402Server = createServer({
   routes: [
     { path: '/register', price: ENTRY_FEE, method: 'POST' },
     { path: '/health', price: 0, method: 'GET' },
+    { path: '/games', price: 0, method: 'GET' },
     { path: '/events', price: 0, method: 'GET' },
     { path: '/set-webhook', price: 0, method: 'POST' },
     { path: '/move', price: 0, method: 'POST' },
@@ -66,8 +75,14 @@ interface PlayerInfo {
   agentUrl?: string;
 }
 
+interface GameSession {
+  game: BaseGame;
+  gameType: string;
+  players: string[];
+}
+
 const players = new Map<string, PlayerInfo>();
-const games = new Map<string, RockPaperScissorsGame>();
+const games = new Map<string, GameSession>();
 const sseClients: express.Response[] = [];
 const statsTracker = new StatsTracker();
 
@@ -125,7 +140,7 @@ app.post('/register', registrationLimiter.middleware(), async (req, res) => {
     });
 
     if (players.size === 2) {
-      setTimeout(() => startGame(), 2000);
+      setTimeout(() => startGame(GAME_TYPE), 2000);
     }
   } catch (error: unknown) {
     if (error instanceof ValidationError) {
@@ -136,31 +151,39 @@ app.post('/register', registrationLimiter.middleware(), async (req, res) => {
   }
 });
 
-function startGame() {
+function startGame(gameType: string = GAME_TYPE) {
   const gameId = `game-${Date.now()}`;
   const playerArray = Array.from(players.entries()).map(([id, data]) => ({
     id,
-    name: data.name,
-    wallet: data.wallet
+    name: data.name
   }));
 
-  const game = new RockPaperScissorsGame(gameId, playerArray);
-  games.set(gameId, game);
-  game.start();
+  const game = GameRegistry.createGame(gameType, gameId, playerArray);
+  if (!game) {
+    console.error(`Failed to create game of type: ${gameType}`);
+    return;
+  }
+
+  const gameConfig = game.getConfig();
+  games.set(gameId, { game, gameType, players: playerArray.map(p => p.id) });
 
   broadcast('game_started', {
     gameId,
+    gameType,
+    gameName: gameConfig.name,
     players: playerArray.map(p => ({ ...p, score: 0 })),
     entryFee: ENTRY_FEE,
-    gameType: 'rock-paper-scissors',
-    maxRounds: 9,
-    firstTo: 5
+    maxRounds: gameConfig.maxRounds,
+    winCondition: gameConfig.winCondition
   });
 
-  console.log(`🎮 Game ${gameId} started!`);
-  console.log(`   Players: ${playerArray.map(p => p.name).join(' vs ')}\n`);
+  console.log(`\n${'═'.repeat(70)}`);
+  console.log(`🎮 GAME STARTED! ${gameConfig.name}`);
+  console.log(`   Game ID: ${gameId}`);
+  console.log(`   Players: ${playerArray.map(p => p.name).join(' vs ')}`);
+  console.log(`   ${gameConfig.winCondition} | Max ${gameConfig.maxRounds} rounds`);
+  console.log(`${'═'.repeat(70)}\n`);
 
-  // Send task to both players simultaneously (RPS both players move at once)
   playerArray.forEach(p => {
     sendTaskToPlayer(p.id, game.getPublicState());
   });
@@ -180,7 +203,7 @@ async function sendTaskToPlayer(playerId: string, gameState: any) {
   const taskPayload = {
     gameState: gameState,
     type: 'game_move',
-    instruction: 'Choose your move: rock, paper, or scissors'
+    instruction: gameState.instructions || 'Make your move'
   };
 
   try {
@@ -206,57 +229,52 @@ app.post('/move', moveLimiter.middleware(), (req, res) => {
     const validated = validateMoveRequest(req.body);
     const { agentId, move, gameId } = validated;
 
-    const game = games.get(gameId);
-    if (!game) {
+    const gameSession = games.get(gameId);
+    if (!gameSession) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
-    const result = game.makeMove(agentId, move);
+    const { game } = gameSession;
+    const moveResult = game.submitMove(agentId, move);
 
-    if (!result.success) {
-      return res.status(400).json({ error: result.result });
+    if (!moveResult.success) {
+      return res.status(400).json({ error: moveResult.error });
     }
 
     const state = game.getPublicState();
+    const roundComplete = moveResult.roundCompleted || false;
 
-    res.json({ success: true, result: result.result, roundComplete: result.roundComplete });
+    res.json({ success: true, roundComplete, gameOver: game.getStatus() === 'finished' });
 
-    if (result.roundComplete) {
-      const lastRound = state.roundHistory[state.roundHistory.length - 1];
-      const agent1 = state.players[0];
-      const agent2 = state.players[1];
+    if (roundComplete) {
+      const lastRound = state.history[state.history.length - 1];
 
-      if (lastRound && agent1 && agent2) {
-        if (lastRound.winnerId === null) {
-          statsTracker.recordRound(agent1.id, 'tie');
-          statsTracker.recordRound(agent2.id, 'tie');
-        } else if (lastRound.winnerId === agent1.id) {
-          statsTracker.recordRound(agent1.id, 'win');
-          statsTracker.recordRound(agent2.id, 'lose');
-        } else {
-          statsTracker.recordRound(agent1.id, 'lose');
-          statsTracker.recordRound(agent2.id, 'win');
-        }
+      if (lastRound) {
+        state.players.forEach((p: any) => {
+          if (lastRound.winnerId === null) {
+            statsTracker.recordRound(p.id, 'tie');
+          } else if (lastRound.winnerId === p.id) {
+            statsTracker.recordRound(p.id, 'win');
+          } else {
+            statsTracker.recordRound(p.id, 'lose');
+          }
+        });
 
         broadcast('round_result', {
-          round: lastRound.roundNumber,
-          agent1Move: lastRound.moves[agent1.id] || 'unknown',
-          agent2Move: lastRound.moves[agent2.id] || 'unknown',
-          winner: lastRound.winnerId === null ? 'TIE' : players.get(lastRound.winnerId!)?.name || 'unknown',
-          score: {
-            agent1: agent1.score,
-            agent2: agent2.score
-          }
+          round: state.round,
+          moves: lastRound.moves,
+          winner: lastRound.winnerId ? players.get(lastRound.winnerId)?.name : 'TIE',
+          scores: state.players.map((p: any) => ({ id: p.id, score: p.score }))
         });
       }
 
-      if (result.gameOver) {
+      if (game.getStatus() === 'finished') {
         setTimeout(() => endGame(gameId), 2000);
       } else {
         setTimeout(() => {
           const updatedState = game.getPublicState();
-          updatedState.players.forEach((p: any) => {
-            sendTaskToPlayer(p.id, updatedState);
+          gameSession.players.forEach(playerId => {
+            sendTaskToPlayer(playerId, updatedState);
           });
         }, 1500);
       }
@@ -270,20 +288,39 @@ app.post('/move', moveLimiter.middleware(), (req, res) => {
   }
 });
 
+const endingGames = new Set<string>();
+
 async function endGame(gameId: string) {
-  const game = games.get(gameId);
-  if (!game) return;
+  if (endingGames.has(gameId)) {
+    return;
+  }
+  endingGames.add(gameId);
 
-  const state = game.getState();
-  const winner = players.get(state.winnerId!);
+  const gameSession = games.get(gameId);
+  if (!gameSession) {
+    endingGames.delete(gameId);
+    return;
+  }
 
+  const { game } = gameSession;
+  const state = game.getPublicState();
+  const winnerId = state.winnerId;
+
+  if (!winnerId) {
+    console.error('❌ No winner determined');
+    endingGames.delete(gameId);
+    return;
+  }
+
+  const winner = players.get(winnerId);
   if (!winner) {
     console.error('❌ Winner not found');
+    endingGames.delete(gameId);
     return;
   }
 
   const prizeAmount = ENTRY_FEE * players.size * 0.95;
-  const loserId = state.players.find((p: any) => p.id !== state.winnerId)?.id;
+  const loserIds = state.players.filter((p: any) => p.id !== winnerId).map((p: any) => p.id);
 
   console.log(`\n🏆 WINNER: ${winner.name}`);
   console.log(`💰 Prize: ${prizeAmount} SOL`);
@@ -309,13 +346,13 @@ async function endGame(gameId: string) {
 
     console.log(`✅ Prize paid: ${signature.slice(0, 16)}...\n`);
 
-    if (loserId) {
-      statsTracker.recordGameEnd(state.winnerId!, loserId, prizeAmount, state.round);
+    if (loserIds.length > 0) {
+      statsTracker.recordGameEnd(winnerId, loserIds[0], prizeAmount, state.round);
     }
 
     broadcast('game_over', {
       gameId,
-      winnerId: state.winnerId,
+      winnerId,
       winner: winner.name,
       prize: prizeAmount.toString(),
       transactionId: signature,
@@ -324,10 +361,11 @@ async function endGame(gameId: string) {
 
   } catch (error: any) {
     handleBlockchainError(error, 'Prize Payout');
+  } finally {
+    players.clear();
+    games.delete(gameId);
+    endingGames.delete(gameId);
   }
-
-  players.clear();
-  games.delete(gameId);
 }
 
 app.get('/events', (req, res) => {
@@ -354,7 +392,15 @@ app.get('/health', (req, res) => {
     games: games.size,
     network: NETWORK,
     entryFee: ENTRY_FEE,
-    spl402: 'enabled'
+    spl402: 'enabled',
+    gameType: GAME_TYPE
+  });
+});
+
+app.get('/games', (req, res) => {
+  res.json({
+    availableGames: GameRegistry.getAllGames(),
+    currentGame: GAME_TYPE
   });
 });
 
