@@ -1,6 +1,7 @@
 import { BaseGame, GameConfig } from './base-game.js';
 import { RockPaperScissorsGame } from './rock-paper-scissors.js';
 import { CoinFlipGame } from './coin-flip.js';
+import { TicTacToeGame } from './tic-tac-toe.js';
 
 type GameConstructor = new (gameId: string, players: Array<{ id: string; name: string }>) => BaseGame;
 
@@ -38,6 +39,7 @@ export class GameRegistry {
   static initializeGames() {
     this.register(RockPaperScissorsGame.CONFIG, RockPaperScissorsGame);
     this.register(CoinFlipGame.CONFIG, CoinFlipGame);
+    this.register(TicTacToeGame.CONFIG, TicTacToeGame);
   }
 }
 

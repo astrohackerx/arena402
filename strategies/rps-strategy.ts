@@ -2,6 +2,15 @@ import { BaseStrategy, MoveDecision } from './base-strategy.js';
 
 const MOVE_ICONS: Record<string, string> = { rock: '🪨', paper: '📄', scissors: '✂️' };
 
+function getShortModelName(fullModel: string): string {
+  if (fullModel.includes('gpt')) return 'gpt';
+  if (fullModel.includes('claude')) return 'claude';
+  if (fullModel.includes('grok')) return 'grok';
+  if (fullModel.includes('llama')) return 'llama';
+  if (fullModel.includes('gemini')) return 'gemini';
+  return fullModel.split('-')[0].slice(0, 8);
+}
+
 export class RockPaperScissorsStrategy extends BaseStrategy {
   async decideMove(gameState: any, myId: string): Promise<MoveDecision> {
     const history = gameState.history || [];
@@ -70,7 +79,8 @@ Be CHAOTIC and UNPREDICTABLE. Respond with ONE WORD: rock, paper, or scissors.`;
 
     const decision = await this.queryLLM(prompt, availableMoves);
 
-    console.log(`\n💭 ${this.agentName} analyzing...`);
+    const modelShort = getShortModelName(this.llmModel);
+    console.log(`\n💭 ${this.agentName} (${modelShort}) analyzing...`);
     console.log(`   Model: ${this.llmModel}`);
     console.log(`   Decision: ${MOVE_ICONS[decision.move]} ${decision.move}`);
 

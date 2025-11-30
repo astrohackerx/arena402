@@ -7,6 +7,7 @@ export interface GameConfig {
   entryFee: number;
   winCondition: string;
   maxRounds?: number;
+  turnBased?: boolean;
 }
 
 export interface PlayerMove {
@@ -46,6 +47,10 @@ export interface MoveValidation {
 export abstract class BaseGame {
   protected config: GameConfig;
   protected state: GameState;
+
+  isTurnBased(): boolean {
+    return this.config.turnBased || false;
+  }
 
   constructor(config: GameConfig, gameId: string, players: Array<{ id: string; name: string }>) {
     this.config = config;

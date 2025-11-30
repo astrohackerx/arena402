@@ -73,6 +73,7 @@ interface PlayerInfo {
   wallet: string;
   paid: boolean;
   agentUrl?: string;
+  modelName?: string;
 }
 
 interface GameSession {
@@ -101,6 +102,7 @@ app.post('/register', registrationLimiter.middleware(), async (req, res) => {
   try {
     const validated = validateRegistration(req.body);
     const { agentId, agentName, agentWallet, agentUrl } = validated;
+    const modelName = req.body.modelName || 'unknown';
 
     if (players.has(agentId)) {
       return res.status(400).json({ error: 'Agent already registered' });
@@ -110,7 +112,7 @@ app.post('/register', registrationLimiter.middleware(), async (req, res) => {
       return res.status(400).json({ error: 'Game is full. Please wait for next round.' });
     }
 
-    console.log(`✅ ${agentName} registered (spl402 payment verified)`);
+    console.log(`✅ ${agentName} (${modelName}) registered (spl402 payment verified)`);
     console.log(`   Wallet: ${agentWallet.slice(0, 8)}...`);
     console.log(`   Paid: ${ENTRY_FEE} SOL`);
 
@@ -120,7 +122,8 @@ app.post('/register', registrationLimiter.middleware(), async (req, res) => {
       name: agentName,
       wallet: agentWallet,
       paid: true,
-      agentUrl
+      agentUrl,
+      modelName
     });
 
     statsTracker.initializePlayer(agentId, agentName, ENTRY_FEE);
@@ -180,13 +183,23 @@ function startGame(gameType: string = GAME_TYPE) {
   console.log(`\n${'═'.repeat(70)}`);
   console.log(`🎮 GAME STARTED! ${gameConfig.name}`);
   console.log(`   Game ID: ${gameId}`);
-  console.log(`   Players: ${playerArray.map(p => p.name).join(' vs ')}`);
+  const playerNames = playerArray.map(p => {
+    const playerInfo = players.get(p.id);
+    return playerInfo?.modelName ? `${p.name} (${playerInfo.modelName})` : p.name;
+  }).join(' vs ');
+  console.log(`   Players: ${playerNames}`);
   console.log(`   ${gameConfig.winCondition} | Max ${gameConfig.maxRounds} rounds`);
   console.log(`${'═'.repeat(70)}\n`);
 
-  playerArray.forEach(p => {
-    sendTaskToPlayer(p.id, game.getPublicState());
-  });
+  const gameState = game.getPublicState();
+
+  if (game.isTurnBased() && gameState.currentTurn) {
+    sendTaskToPlayer(gameState.currentTurn, gameState);
+  } else {
+    playerArray.forEach(p => {
+      sendTaskToPlayer(p.id, gameState);
+    });
+  }
 }
 
 app.post('/set-webhook', (req, res) => {
@@ -207,7 +220,8 @@ async function sendTaskToPlayer(playerId: string, gameState: any) {
   };
 
   try {
-    console.log(`📤 Sending task to ${player.name}...`);
+    const displayName = player.modelName ? `${player.name} (${player.modelName})` : player.name;
+    console.log(`📤 Sending task to ${displayName}...`);
 
     if (player.agentUrl) {
       await fetch(`${player.agentUrl}/task`, {
@@ -278,6 +292,18 @@ app.post('/move', moveLimiter.middleware(), (req, res) => {
           });
         }, 1500);
       }
+    } else {
+      setTimeout(() => {
+        const updatedState = game.getPublicState();
+
+        if (game.isTurnBased() && updatedState.currentTurn) {
+          sendTaskToPlayer(updatedState.currentTurn, updatedState);
+        } else {
+          gameSession.players.forEach(playerId => {
+            sendTaskToPlayer(playerId, updatedState);
+          });
+        }
+      }, 500);
     }
   } catch (error: unknown) {
     if (error instanceof ValidationError) {
@@ -322,7 +348,8 @@ async function endGame(gameId: string) {
   const prizeAmount = ENTRY_FEE * players.size * 0.95;
   const loserIds = state.players.filter((p: any) => p.id !== winnerId).map((p: any) => p.id);
 
-  console.log(`\n🏆 WINNER: ${winner.name}`);
+  const winnerDisplay = winner.modelName ? `${winner.name} (${winner.modelName})` : winner.name;
+  console.log(`\n🏆 WINNER: ${winnerDisplay}`);
   console.log(`💰 Prize: ${prizeAmount} SOL`);
 
   try {

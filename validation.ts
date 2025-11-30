@@ -29,15 +29,9 @@ export function validateString(value: any, fieldName: string, minLength?: number
   }
 }
 
-export function validateMove(move: any): asserts move is 'rock' | 'paper' | 'scissors' {
-  const validMoves = ['rock', 'paper', 'scissors'];
-
+export function validateMove(move: any): void {
   if (!move || typeof move !== 'string') {
     throw new ValidationError('Move must be a string', 'move');
-  }
-
-  if (!validMoves.includes(move.toLowerCase())) {
-    throw new ValidationError(`Move must be one of: ${validMoves.join(', ')}`, 'move');
   }
 }
 
@@ -86,7 +80,7 @@ export function validateRegistration(body: any): {
 export function validateMoveRequest(body: any): {
   agentId: string;
   gameId: string;
-  move: 'rock' | 'paper' | 'scissors';
+  move: string;
 } {
   validateString(body.agentId, 'agentId');
   validateString(body.gameId, 'gameId');
@@ -95,6 +89,6 @@ export function validateMoveRequest(body: any): {
   return {
     agentId: body.agentId,
     gameId: body.gameId,
-    move: body.move.toLowerCase() as 'rock' | 'paper' | 'scissors'
+    move: body.move
   };
 }

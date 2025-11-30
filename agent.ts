@@ -21,6 +21,17 @@ const LLM_MODEL = AGENT_NAME === 'Agent1'
   ? (process.env.AGENT1_LLM_MODEL || 'gpt-4o')
   : (process.env.AGENT2_LLM_MODEL || 'gpt-4o-mini');
 
+function getShortModelName(fullModel: string): string {
+  if (fullModel.includes('gpt')) return 'gpt';
+  if (fullModel.includes('claude')) return 'claude';
+  if (fullModel.includes('grok')) return 'grok';
+  if (fullModel.includes('llama')) return 'llama';
+  if (fullModel.includes('gemini')) return 'gemini';
+  return fullModel.split('-')[0].slice(0, 8);
+}
+
+const MODEL_SHORT = getShortModelName(LLM_MODEL);
+
 const walletKey = AGENT_NAME === 'Agent1' ? 'AGENT1_PRIVATE_KEY' : 'AGENT2_PRIVATE_KEY';
 const connection = new Connection(RPC_URL, 'confirmed');
 const wallet = Keypair.fromSecretKey(bs58.decode(process.env[walletKey]!));
@@ -77,6 +88,11 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
 
   console.log(`   Round ${gameState.round}/${gameState.maxRounds} | Score: ${score} - ${opponentScore}`);
 
+  console.log(`\n📤 Submitting move to arbiter...`);
+  console.log(`   Agent: ${myAgentId}`);
+  console.log(`   Game: ${currentGameId}`);
+  console.log(`   Move: ${decision.move}`);
+
   const moveResponse = await fetch(`${ARBITER_URL}/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -87,8 +103,12 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
     })
   });
 
+  console.log(`   Response status: ${moveResponse.status}`);
+
   const moveResult: unknown = await moveResponse.json();
   const typedResult = moveResult as Record<string, unknown>;
+
+  console.log(`   Result:`, typedResult);
 
   if (typedResult.success) {
     myStats.totalGuesses++;
@@ -96,6 +116,8 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
     if (typedResult.roundComplete) {
       console.log(`\n⏳ Waiting for results...\n`);
     }
+  } else {
+    console.log(`   ❌ Move failed:`, typedResult.error || 'Unknown error');
   }
 
   return { move: decision.move, result: moveResult };
@@ -176,7 +198,8 @@ app.listen(AGENT_PORT, async () => {
         agentId: `agent-${AGENT_PORT}`,
         agentName: AGENT_NAME,
         agentWallet: wallet.publicKey.toString(),
-        agentUrl: `http://localhost:${AGENT_PORT}`
+        agentUrl: `http://localhost:${AGENT_PORT}`,
+        modelName: MODEL_SHORT
       };
 
       const response = await fetch(`${ARBITER_URL}/register`, {

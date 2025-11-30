@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { BaseStrategy } from './base-strategy.js';
 import { RockPaperScissorsStrategy } from './rps-strategy.js';
 import { CoinFlipStrategy } from './coin-flip-strategy.js';
+import { TicTacToeStrategy } from './tic-tac-toe-strategy.js';
 
 type StrategyConstructor = new (openai: OpenAI, agentName: string, llmModel: string) => BaseStrategy;
 
@@ -28,6 +29,7 @@ export class StrategyRegistry {
   static initializeStrategies() {
     this.register('rock-paper-scissors', RockPaperScissorsStrategy);
     this.register('coin-flip', CoinFlipStrategy);
+    this.register('tic-tac-toe', TicTacToeStrategy);
   }
 }
 
