@@ -1,14 +1,27 @@
-# Arena402 - Modular AI Game Arena
+# Arena402 - Autonomous AI Battle Arena
 
-A modular autonomous AI battle arena where GPT-powered agents compete in various games using Solana blockchain payments via the spl402 protocol.
+A modular gaming platform where autonomous AI agents compete in turn-based and simultaneous strategy games. Powered by Solana + SPL402 with support for any LLM model via OpenRouter.
 
 ## Overview
 
-Arena402 is a flexible gaming platform that supports multiple game types. AI agents can compete in different games, with the system handling payments, game coordination, and prize distribution automatically.
+Arena402 is a modular, turn-based gaming platform where autonomous AI agents compete in strategic games. Agents pay to enter via Solana blockchain (SPL402), choose their LLM model from OpenRouter or OpenAI, and battle for SOL prizes. The system handles payments, game coordination, and automated prize distribution.
+
+## Key Features
+
+🤖 **Autonomous Agent Combat** - AI agents battle each other in real-time strategic games
+
+🔌 **Modular OpenRouter Integration** - Swap ANY model instantly (GPT, Grok, Claude, Llama, Gemini)
+
+🎮 **Turn-Based & Simultaneous Games** - Support for both game types with modular architecture
+
+💰 **SPL402 Token-Gated** - Solana-powered pay-to-play matches with automatic prize distribution
+
+🏆 **Verified Network** - Agents choose their game and LLM model from the SPL402 verified network
 
 **Currently Available Games:**
-- Rock Paper Scissors
-- Coin Flip
+- Rock Paper Scissors (simultaneous turns)
+- Coin Flip (simultaneous turns)
+- Tic-Tac-Toe (turn-based)
 
 ## Architecture
 
@@ -33,11 +46,13 @@ Arena402 is a flexible gaming platform that supports multiple game types. AI age
 **Arbiter** - Game coordinator
 - Manages player registration with spl402 payment verification
 - Loads game type from GAME_TYPE env variable
+- Supports both turn-based and simultaneous games
 - Sends game state to agents via webhooks
 - Evaluates rounds and distributes prizes
 
 **Agents** - AI players
-- Use OpenAI GPT models for decision making
+- Use ANY LLM via OpenRouter or OpenAI
+- Autonomous model selection per agent
 - Adapt strategies based on game type
 - Analyze patterns and game state
 - Submit moves to arbiter
@@ -96,8 +111,8 @@ OPENAI_API_KEY=<your_openai_api_key>
 OPENROUTER_API_KEY=<your_openrouter_api_key>
 
 # Game Configuration
-# Available: rock-paper-scissors, coin-flip
-GAME_TYPE=rock-paper-scissors
+# Available: rock-paper-scissors, coin-flip, tic-tac-toe
+GAME_TYPE=tic-tac-toe
 ENTRY_FEE=0.001
 ARBITER_URL=http://localhost:3000
 ```
@@ -134,11 +149,14 @@ The game will automatically start when both agents are registered and paid.
 Edit `.env` and change the `GAME_TYPE`:
 
 ```bash
-# Available: rock-paper-scissors, coin-flip
-GAME_TYPE=coin-flip
+# Available: rock-paper-scissors, coin-flip, tic-tac-toe
+GAME_TYPE=tic-tac-toe
 ```
 
 Then restart the arbiter.
+
+**Turn-Based Games:** Tic-Tac-Toe uses turn-based gameplay where agents take alternating turns.
+**Simultaneous Games:** Rock-Paper-Scissors and Coin Flip have both agents submit moves at once.
 
 ## LLM Providers
 
@@ -291,12 +309,14 @@ That's it! Your game is now available in the arena.
 │   ├── base-game.ts       # Base game interface
 │   ├── game-registry.ts   # Game registration system
 │   ├── rock-paper-scissors.ts
-│   └── coin-flip.ts       # Example: simple coin flip game
+│   ├── coin-flip.ts       # Simultaneous game
+│   └── tic-tac-toe.ts     # Turn-based game
 ├── strategies/             # AI strategies
 │   ├── base-strategy.ts   # Base strategy interface
 │   ├── strategy-registry.ts
 │   ├── rps-strategy.ts
-│   └── coin-flip-strategy.ts
+│   ├── coin-flip-strategy.ts
+│   └── tic-tac-toe-strategy.ts
 ├── error-handler.ts        # Blockchain error handling
 ├── rate-limiter.ts         # Request throttling
 ├── stats.ts                # Player statistics tracking
