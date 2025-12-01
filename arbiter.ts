@@ -62,7 +62,8 @@ const spl402Server = createServer({
     { path: '/events', price: 0, method: 'GET' },
     { path: '/set-webhook', price: 0, method: 'POST' },
     { path: '/move', price: 0, method: 'POST' },
-    { path: '/stats', price: 0, method: 'GET' }
+    { path: '/stats', price: 0, method: 'GET' },
+    { path: '/current-game', price: 0, method: 'GET' }
   ]
 });
 
@@ -171,6 +172,8 @@ function startGame(gameType: string = GAME_TYPE) {
   const gameConfig = game.getConfig();
   games.set(gameId, { game, gameType, players: playerArray.map(p => p.id) });
 
+  const initialState = game.getPublicState();
+
   broadcast('game_started', {
     gameId,
     gameType,
@@ -178,7 +181,8 @@ function startGame(gameType: string = GAME_TYPE) {
     players: playerArray.map(p => ({ ...p, score: 0 })),
     entryFee: ENTRY_FEE,
     maxRounds: gameConfig.maxRounds,
-    winCondition: gameConfig.winCondition
+    winCondition: gameConfig.winCondition,
+    ...initialState
   });
 
   console.log(`\n${'═'.repeat(70)}`);
@@ -243,6 +247,7 @@ app.post('/move', moveLimiter.middleware(), (req, res) => {
   try {
     const validated = validateMoveRequest(req.body);
     const { agentId, move, gameId } = validated;
+    const commentary = req.body.commentary;
 
     const gameSession = games.get(gameId);
     if (!gameSession) {
@@ -250,7 +255,7 @@ app.post('/move', moveLimiter.middleware(), (req, res) => {
     }
 
     const { game } = gameSession;
-    const moveResult = game.submitMove(agentId, move);
+    const moveResult = game.submitMove(agentId, move, commentary);
 
     if (!moveResult.success) {
       return res.status(400).json({ error: moveResult.error });
@@ -260,6 +265,12 @@ app.post('/move', moveLimiter.middleware(), (req, res) => {
     const roundComplete = moveResult.roundCompleted || false;
 
     res.json({ success: true, roundComplete, gameOver: game.getStatus() === 'finished' });
+
+    // Broadcast move update to web clients
+    broadcast('move_made', {
+      gameId,
+      ...state
+    });
 
     if (roundComplete) {
       const lastRound = state.history[state.history.length - 1];
@@ -447,6 +458,29 @@ app.get('/stats', (req, res) => {
     allPlayers: statsTracker.getAllStats(),
     leaderboard: statsTracker.getLeaderboard()
   });
+});
+
+app.get('/game/:gameId', (req, res) => {
+  const { gameId } = req.params;
+  const gameSession = games.get(gameId);
+
+  if (!gameSession) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+
+  const state = gameSession.game.getPublicState();
+  res.json(state);
+});
+
+app.get('/current-game', (req, res) => {
+  const activeGame = Array.from(games.values()).find(g => g.game.getStatus() === 'active');
+
+  if (!activeGame) {
+    return res.json({ gameId: null });
+  }
+
+  const state = activeGame.game.getPublicState();
+  res.json(state);
 });
 
 app.listen(PORT, () => {

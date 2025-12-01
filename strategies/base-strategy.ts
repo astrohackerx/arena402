@@ -2,8 +2,10 @@ import OpenAI from 'openai';
 
 export interface MoveDecision {
   move: string;
-  rawResponse: string;
+  rawResponse?: string;
+  reasoning?: string;
   confidence?: number;
+  commentary?: string;
 }
 
 export abstract class BaseStrategy {

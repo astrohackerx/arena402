@@ -1,0 +1,203 @@
+.game-container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.game-info {
+  text-align: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
+}
+
+.round-info {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.turn-indicator {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.current-player {
+  font-weight: 700;
+  color: #ec4899;
+}
+
+.game-over {
+  font-size: 2rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: celebration 0.5s ease-in-out;
+}
+
+@keyframes celebration {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.board-section {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 120px);
+  grid-template-rows: repeat(3, 120px);
+  gap: 10px;
+  background: rgba(147, 51, 234, 0.1);
+  padding: 10px;
+  border-radius: 1rem;
+  box-shadow: 0 20px 60px rgba(147, 51, 234, 0.3);
+}
+
+.cell {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(147, 51, 234, 0.3);
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.cell:hover {
+  background: rgba(147, 51, 234, 0.1);
+  border-color: rgba(147, 51, 234, 0.6);
+  transform: scale(1.05);
+}
+
+.cell.filled {
+  cursor: not-allowed;
+}
+
+.cell.winning {
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.3), rgba(236, 72, 153, 0.3));
+  border-color: #ec4899;
+  animation: pulse-win 1s ease-in-out infinite;
+}
+
+@keyframes pulse-win {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.x-mark {
+  color: #ec4899;
+  text-shadow: 0 0 20px rgba(236, 72, 153, 0.8);
+  animation: mark-appear 0.3s ease-out;
+}
+
+.o-mark {
+  color: #9333ea;
+  text-shadow: 0 0 20px rgba(147, 51, 234, 0.8);
+  animation: mark-appear 0.3s ease-out;
+}
+
+@keyframes mark-appear {
+  0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.history-section {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
+}
+
+.history-section h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #9333ea 0%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.history-feed {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.history-feed::-webkit-scrollbar {
+  width: 8px;
+}
+
+.history-feed::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.history-feed::-webkit-scrollbar-thumb {
+  background: rgba(147, 51, 234, 0.5);
+  border-radius: 4px;
+}
+
+.history-item {
+  background: rgba(147, 51, 234, 0.1);
+  border-left: 3px solid #9333ea;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.5rem;
+}
+
+.history-round {
+  font-weight: 700;
+  color: #ec4899;
+  margin-bottom: 0.5rem;
+}
+
+.move-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.player-name {
+  font-weight: 600;
+}
+
+.move-value {
+  font-family: 'Courier New', monospace;
+  color: #9333ea;
+}
+
+.round-result {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(147, 51, 234, 0.3);
+  font-weight: 700;
+  color: #ec4899;
+}
+
+@media (max-width: 768px) {
+  .board-grid {
+    grid-template-columns: repeat(3, 90px);
+    grid-template-rows: repeat(3, 90px);
+  }
+
+  .cell {
+    font-size: 3rem;
+  }
+}

@@ -75,7 +75,7 @@ export abstract class BaseGame {
   abstract getAvailableMoves(): string[];
   abstract getGameInstructions(): string;
 
-  submitMove(playerId: string, move: string): { success: boolean; error?: string; roundCompleted?: boolean } {
+  submitMove(playerId: string, move: string, commentary?: string): { success: boolean; error?: string; roundCompleted?: boolean } {
     const validation = this.validateMove(playerId, move);
     if (!validation.valid) {
       return { success: false, error: validation.error };

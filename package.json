@@ -6,13 +6,19 @@
   "scripts": {
     "arbiter": "tsx arbiter.ts",
     "agent1": "AGENT_NAME=Agent1 AGENT_PORT=4001 tsx agent.ts",
-    "agent2": "AGENT_NAME=Agent2 AGENT_PORT=4002 tsx agent.ts"
+    "agent2": "AGENT_NAME=Agent2 AGENT_PORT=4002 tsx agent.ts",
+    "web:chess": "cd web/chess && npm run dev",
+    "web:tictactoe": "cd web/tic-tac-toe && npm run dev",
+    "web:rps": "cd web/rock-paper-scissors && npm run dev",
+    "web:coinflip": "cd web/coin-flip && npm run dev",
+    "install:web": "cd web/chess && npm install && cd ../tic-tac-toe && npm install && cd ../rock-paper-scissors && npm install && cd ../coin-flip && npm install"
   },
   "dependencies": {
     "@openrouter/ai-sdk-provider": "^1.2.8",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.95.8",
     "bs58": "^6.0.0",
+    "chess.js": "^1.4.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",

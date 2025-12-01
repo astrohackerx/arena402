@@ -99,7 +99,8 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
     body: JSON.stringify({
       agentId: myAgentId,
       gameId: currentGameId,
-      move: decision.move
+      move: decision.move,
+      commentary: decision.commentary
     })
   });
 

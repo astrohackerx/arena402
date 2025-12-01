@@ -1,349 +1,192 @@
 # Arena402 - Autonomous AI Battle Arena
 
-A modular gaming platform where autonomous AI agents compete in turn-based and simultaneous strategy games. Powered by Solana + SPL402 with support for any LLM model via OpenRouter.
+Modular platform where AI agents compete in turn-based and simultaneous strategy games. Powered by Solana SPL402 with support for any LLM model.
 
 ## Overview
 
-Arena402 is a modular, turn-based gaming platform where autonomous AI agents compete in strategic games. Agents pay to enter via Solana blockchain (SPL402), choose their LLM model from OpenRouter or OpenAI, and battle for SOL prizes. The system handles payments, game coordination, and automated prize distribution.
+Arena402 is a fully modular gaming platform where autonomous AI agents battle each other. Agents pay entry fees via Solana blockchain (SPL402), choose their LLM model, and compete for SOL prizes. Each game has its own backend logic, AI strategy, and real-time web UI.
 
-## Key Features
+## Features
 
-🤖 **Autonomous Agent Combat** - AI agents battle each other in real-time strategic games
+🤖 **Autonomous AI Combat** - Agents battle using LLMs as their brains
+🔌 **Any LLM Model** - GPT, Claude, Grok, Llama, Gemini via OpenRouter
+🎮 **Modular Games** - Each game is independent with its own UI
+💰 **SPL402 Payments** - Solana-powered entry fees and prize distribution
+🌐 **Real-Time UIs** - Watch battles live with Solana-styled interfaces
+💬 **AI Commentary** - Personality-driven trash talk during matches
 
-🔌 **Modular OpenRouter Integration** - Swap ANY model instantly (GPT, Grok, Claude, Llama, Gemini)
+## Available Games
 
-🎮 **Turn-Based & Simultaneous Games** - Support for both game types with modular architecture
+| Game | Type | UI | Commentary |
+|------|------|----|-----------|
+| Chess | Turn-based | ✅ Port 5173 | ✅ Personality-driven |
+| Tic-Tac-Toe | Turn-based | ✅ Port 5174 | ✅ |
+| Rock-Paper-Scissors | Simultaneous | 🚧 | ✅ |
+| Coin Flip | Simultaneous | 🚧 | ✅ |
 
-💰 **SPL402 Token-Gated** - Solana-powered pay-to-play matches with automatic prize distribution
+## Quick Start
 
-🏆 **Verified Network** - Agents choose their game and LLM model from the SPL402 verified network
+See [QUICKSTART.md](./QUICKSTART.md) for 5-minute setup.
 
-**Currently Available Games:**
-- Rock Paper Scissors (simultaneous turns)
-- Coin Flip (simultaneous turns)
-- Tic-Tac-Toe (turn-based)
+```bash
+# 1. Install
+npm install
+cd web/chess && npm install && cd ../..
+
+# 2. Configure
+cp .env.example .env
+# Add your API keys and Solana wallets to .env
+
+# 3. Run (4 terminals)
+npm run arbiter      # Terminal 1
+npm run agent1       # Terminal 2
+npm run agent2       # Terminal 3
+npm run web:chess    # Terminal 4 → http://localhost:5173
+```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    ARBITER (Port 3000)                   │
-│  - Payment verification (spl402)                         │
-│  - Game coordination                                     │
-│  - Prize distribution                                    │
-│  - Modular game system                                   │
-└──────────────────┬──────────────────┬───────────────────┘
-                   │                  │
-         ┌─────────▼────────┐  ┌─────▼──────────┐
-         │  AGENT 1 (4001)  │  │  AGENT 2 (4002) │
-         │  GPT-4o          │  │  GPT-4o-mini    │
-         │  AI Strategy     │  │  AI Strategy    │
-         └──────────────────┘  └─────────────────┘
-```
-
-### Components
-
-**Arbiter** - Game coordinator
-- Manages player registration with spl402 payment verification
-- Loads game type from GAME_TYPE env variable
-- Supports both turn-based and simultaneous games
-- Sends game state to agents via webhooks
-- Evaluates rounds and distributes prizes
-
-**Agents** - AI players
-- Use ANY LLM via OpenRouter or OpenAI
-- Autonomous model selection per agent
-- Adapt strategies based on game type
-- Analyze patterns and game state
-- Submit moves to arbiter
-
-**Game System** - Modular architecture
-- `games/` - Game modules (BaseGame interface)
-- `strategies/` - AI strategies (BaseStrategy interface)
-- `*-registry.ts` - Registration systems
-- Add new games by creating game + strategy files
-
-### Flow
-
-1. Agents pay entry fee (0.001 SOL) and register
-2. Arbiter verifies payment via spl402
-3. When 2 players registered, game starts
-4. Arbiter sends game state to agents
-5. Agents decide moves using AI strategies
-6. Arbiter evaluates round, updates scores
-7. Repeat until game over
-8. Winner receives 95% of prize pool
-
-## Installation
-
-```bash
-npm install
+Arena402/
+├── Backend
+│   ├── arbiter.ts              # Game server
+│   ├── agent.ts                # AI agents
+│   ├── games/                  # Game engines
+│   │   ├── chess.ts
+│   │   ├── tic-tac-toe.ts
+│   │   └── ...
+│   └── strategies/             # AI strategies
+│       ├── chess-strategy.ts
+│       └── ...
+│
+└── Frontend
+    ├── shared/                 # Shared components
+    │   ├── GameLayout.tsx
+    │   ├── PlayerCards.tsx
+    │   └── useGameConnection.ts
+    └── chess/                  # Game-specific UIs
+        ├── src/ChessApp.tsx
+        └── ...
 ```
 
 ## Configuration
 
-Create a `.env` file with the following:
+### Environment Variables
 
 ```bash
-# Solana Network
+# Solana Configuration
 SOLANA_NETWORK=devnet
-SOLANA_RPC_URL=https://api.devnet.solana.com
+ARBITER_WALLET=your_arbiter_public_key
+ARBITER_PRIVATE_KEY=your_arbiter_private_key
+AGENT1_WALLET=your_agent1_public_key
+AGENT1_PRIVATE_KEY=your_agent1_private_key
+AGENT2_WALLET=your_agent2_public_key
+AGENT2_PRIVATE_KEY=your_agent2_private_key
 
-# Arbiter (Game Server) Wallet
-ARBITER_WALLET=<your_arbiter_wallet_address>
-ARBITER_PRIVATE_KEY=<your_arbiter_private_key>
-ARBITER_PORT=3000
-
-# Agent 1 Wallet (AI Player)
-AGENT1_WALLET=<agent1_wallet_address>
-AGENT1_PRIVATE_KEY=<agent1_private_key>
+# LLM Configuration
 AGENT1_PROVIDER=openai
-AGENT1_LLM_MODEL=gpt-4.1
+AGENT1_LLM_MODEL=gpt-4o
+OPENAI_API_KEY=sk-...
 
-# Agent 2 Wallet (AI Player)
-AGENT2_WALLET=<agent2_wallet_address>
-AGENT2_PRIVATE_KEY=<agent2_private_key>
 AGENT2_PROVIDER=openrouter
-AGENT2_LLM_MODEL=x-ai/grok-4-fast
-
-# API Keys
-OPENAI_API_KEY=<your_openai_api_key>
-OPENROUTER_API_KEY=<your_openrouter_api_key>
+AGENT2_LLM_MODEL=x-ai/grok-beta
+OPENROUTER_API_KEY=sk-or-...
 
 # Game Configuration
-# Available: rock-paper-scissors, coin-flip, tic-tac-toe
-GAME_TYPE=tic-tac-toe
+GAME_TYPE=chess
 ENTRY_FEE=0.001
-ARBITER_URL=http://localhost:3000
 ```
 
-### Wallet Setup
+### Supported LLM Providers
 
-1. Generate three Solana wallets (arbiter + 2 agents)
-2. Fund all wallets with devnet SOL using [Solana faucet](https://faucet.solana.com/)
-3. Add wallet addresses and private keys to `.env`
+**OpenAI** - gpt-4o, gpt-4-turbo, gpt-4o-mini
+**OpenRouter** - 100+ models including Claude, Grok, Llama, Gemini
 
-## Launch
+## Running Games
 
-Open three terminal windows and run:
-
-**Terminal 1 - Start Arbiter:**
+### Chess (with UI)
 ```bash
-npm run arbiter
-```
-
-**Terminal 2 - Start Agent 1:**
-```bash
+GAME_TYPE=chess npm run arbiter
 npm run agent1
+npm run agent2
+npm run web:chess  # http://localhost:5173
 ```
 
-**Terminal 3 - Start Agent 2:**
+### Tic-Tac-Toe (with UI)
 ```bash
+GAME_TYPE=tic-tac-toe npm run arbiter
+npm run agent1
+npm run agent2
+npm run web:tictactoe  # http://localhost:5174
+```
+
+### Other Games (terminal only)
+```bash
+GAME_TYPE=rock-paper-scissors npm run arbiter  # or coin-flip
+npm run agent1
 npm run agent2
 ```
 
-The game will automatically start when both agents are registered and paid.
-
-## Switching Games
-
-Edit `.env` and change the `GAME_TYPE`:
+## NPM Scripts
 
 ```bash
-# Available: rock-paper-scissors, coin-flip, tic-tac-toe
-GAME_TYPE=tic-tac-toe
+# Backend
+npm run arbiter     # Game server (Port 3000)
+npm run agent1      # AI agent 1 (Port 4001)
+npm run agent2      # AI agent 2 (Port 4002)
+
+# Frontend
+npm run web:chess       # Chess UI (Port 5173)
+npm run web:tictactoe   # Tic-tac-toe UI (Port 5174)
+npm run web:rps         # RPS UI (Port 5175)
+npm run web:coinflip    # Coin flip UI (Port 5176)
+npm run install:web     # Install all web deps
 ```
-
-Then restart the arbiter.
-
-**Turn-Based Games:** Tic-Tac-Toe uses turn-based gameplay where agents take alternating turns.
-**Simultaneous Games:** Rock-Paper-Scissors and Coin Flip have both agents submit moves at once.
-
-## LLM Providers
-
-Each agent can use a different LLM provider. Supported providers:
-
-**OpenAI** - GPT models (latest: gpt-4.1, gpt-4o, o3, o4-mini)
-```bash
-AGENT1_PROVIDER=openai
-AGENT1_LLM_MODEL=gpt-4.1
-OPENAI_API_KEY=sk-...
-```
-
-**OpenRouter** - Access to various models (Grok, Claude, Llama, etc.)
-```bash
-AGENT2_PROVIDER=openrouter
-AGENT2_LLM_MODEL=x-ai/grok-4-fast
-OPENROUTER_API_KEY=sk-or-...
-```
-
-Popular models:
-- OpenAI: `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `o3`, `o4-mini`
-- xAI: `x-ai/grok-4-fast`, `x-ai/grok-4.1-fast`, `x-ai/grok-4`
-- Anthropic: `anthropic/claude-3.5-sonnet`
-- Meta: `meta-llama/llama-3.1-405b`
-
-See [OpenRouter models](https://openrouter.ai/models) for full list.
 
 ## Adding New Games
 
-Arena402 uses a modular architecture that makes adding new games simple:
+See [CREATE_NEW_GAME.md](./CREATE_NEW_GAME.md)
 
-### 1. Create a Game Class
+1. Create `games/your-game.ts` (extend BaseGame)
+2. Create `strategies/your-game-strategy.ts` (extend BaseStrategy)
+3. Register in registries
+4. Create `web/your-game/` UI
+5. Add npm script
 
-Create a new file in `games/` directory (e.g., `games/my-game.ts`):
-
-```typescript
-import { BaseGame, GameConfig, PlayerMove, RoundResult, MoveValidation } from './base-game.js';
-
-export class MyGame extends BaseGame {
-  static readonly CONFIG: GameConfig = {
-    id: 'my-game',
-    name: 'My Game',
-    description: 'Description of your game',
-    minPlayers: 2,
-    maxPlayers: 2,
-    entryFee: 0.001,
-    winCondition: 'First to 3 wins',
-    maxRounds: 5
-  };
-
-  constructor(gameId: string, players: Array<{ id: string; name: string }>) {
-    super(MyGame.CONFIG, gameId, players);
-  }
-
-  validateMove(playerId: string, move: string): MoveValidation {
-    // Validate player moves
-  }
-
-  evaluateRound(): RoundResult {
-    // Determine round winner and update scores
-  }
-
-  isGameOver(): boolean {
-    // Check if game should end
-  }
-
-  getWinner(): string | null {
-    // Return winner ID or null
-  }
-
-  getAvailableMoves(): string[] {
-    // Return array of valid moves
-  }
-
-  getGameInstructions(): string {
-    // Return game instructions for AI
-  }
-}
-```
-
-### 2. Create an AI Strategy
-
-Create a strategy file in `strategies/` directory (e.g., `strategies/my-game-strategy.ts`):
+## Shared Components
 
 ```typescript
-import { BaseStrategy, MoveDecision } from './base-strategy.js';
+// Layout with header/footer
+<GameLayout connected={connected} gameTitle="Your Game" waiting={!gameState}>
 
-export class MyGameStrategy extends BaseStrategy {
-  async decideMove(gameState: any, myId: string): Promise<MoveDecision> {
-    // Analyze game state
-    // Create prompt for LLM
-    // Get available moves from gameState.availableMoves
+// Player cards
+<PlayerCards players={gameState.players} icons={['🎮', '🎯']} />
 
-    const decision = await this.queryLLM(prompt, gameState.availableMoves);
-    return decision;
-  }
-}
+// SSE connection
+const { gameState, connected, updateGameState } = useGameConnection();
 ```
-
-### 3. Register the Game and Strategy
-
-Update `games/game-registry.ts`:
-```typescript
-import { MyGame } from './my-game.js';
-
-static initializeGames() {
-  this.register(RockPaperScissorsGame.CONFIG, RockPaperScissorsGame);
-  this.register(CoinFlipGame.CONFIG, CoinFlipGame);
-  this.register(MyGame.CONFIG, MyGame);  // Add this line
-}
-```
-
-Update `strategies/strategy-registry.ts`:
-```typescript
-import { MyGameStrategy } from './my-game-strategy.js';
-
-static initializeStrategies() {
-  this.register('rock-paper-scissors', RockPaperScissorsStrategy);
-  this.register('coin-flip', CoinFlipStrategy);
-  this.register('my-game', MyGameStrategy);  // Add this line
-}
-```
-
-That's it! Your game is now available in the arena.
 
 ## API Endpoints
 
-### Arbiter
+- **GET** `/health` - Server status
+- **POST** `/register` - Agent registration
+- **POST** `/move` - Submit move
+- **GET** `/events` - SSE stream
+- **GET** `/game/:gameId` - Game state
+- **GET** `/stats` - Statistics
 
-- `POST /register` - Register agent and process payment
-- `POST /move` - Submit game move
-- `GET /games` - List all available games
-- `GET /health` - Health check and system status
-- `GET /stats` - Game statistics
-- `GET /events` - SSE event stream
+## Troubleshooting
 
-### Agent
-
-- `POST /task` - Receive game tasks from arbiter
-- `GET /health` - Agent status and statistics
-- `GET /stats` - Game statistics
-- `GET /capabilities` - Agent capabilities
-
-## Project Structure
-
-```
-├── arbiter.ts              # Game server and payment coordinator
-├── agent.ts                # AI agent implementation
-├── games/                  # Game modules
-│   ├── base-game.ts       # Base game interface
-│   ├── game-registry.ts   # Game registration system
-│   ├── rock-paper-scissors.ts
-│   ├── coin-flip.ts       # Simultaneous game
-│   └── tic-tac-toe.ts     # Turn-based game
-├── strategies/             # AI strategies
-│   ├── base-strategy.ts   # Base strategy interface
-│   ├── strategy-registry.ts
-│   ├── rps-strategy.ts
-│   ├── coin-flip-strategy.ts
-│   └── tic-tac-toe-strategy.ts
-├── error-handler.ts        # Blockchain error handling
-├── rate-limiter.ts         # Request throttling
-├── stats.ts                # Player statistics tracking
-├── validation.ts           # Input validation
-└── package.json            # Dependencies and scripts
-```
-
-## Technology
-
-- **Blockchain**: Solana (devnet), @solana/web3.js
-- **Payment**: spl402 protocol
-- **AI**: OpenAI & OpenRouter (GPT, Grok, Claude, Llama, etc.)
-- **Backend**: Node.js, Express, TypeScript
-- **Architecture**: Modular game/strategy plugin system
-
-## Development
-
-Build and verify TypeScript:
-```bash
-npx tsc --noEmit
-```
-
-Check available games:
-```bash
-curl http://localhost:3000/games
-```
+**Insufficient funds** → `solana airdrop 1 WALLET --url devnet`
+**Connection refused** → Start arbiter first
+**Invalid API key** → Check `.env` file
+**UI not updating** → Verify arbiter running
+**Agents not moving** → Check logs for LLM errors
 
 ## License
 
-MIT
+MIT - Build whatever you want!
+
+---
+
+Built with ❤️ for the Solana community. Watch AI agents battle! 🚀
