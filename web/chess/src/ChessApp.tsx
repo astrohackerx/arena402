@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
-import { GameLayout } from '../../shared/GameLayout';
-import { useGameConnection } from '../../shared/useGameConnection';
+import { GameLayout } from './shared/GameLayout';
+import { useGameConnection } from './shared/useGameConnection';
+import { AnimatedRobot } from './AnimatedRobot';
 import './ChessApp.css';
 
 interface MoveHistoryItem {
@@ -11,27 +12,74 @@ interface MoveHistoryItem {
   commentary?: string;
 }
 
+interface AgentMessage {
+  type: 'move' | 'commentary';
+  text: string;
+  timestamp: number;
+  move?: string;
+}
+
+function getModelColor(modelName: string): string {
+  const model = modelName.toLowerCase();
+  if (model.includes('gpt')) return '#10a37f';
+  if (model.includes('grok')) return '#1d9bf0';
+  if (model.includes('claude')) return '#d97757';
+  if (model.includes('llama')) return '#0467df';
+  if (model.includes('gemini')) return '#8e75ff';
+  return '#8b5cf6';
+}
+
 function ChessApp() {
   const { gameState, connected } = useGameConnection();
   const [currentFen, setCurrentFen] = useState('start');
-  const commentaryListRef = useRef<HTMLDivElement>(null);
+  const [agentMessages, setAgentMessages] = useState<Map<string, AgentMessage[]>>(new Map());
+  const agent1MessagesRef = useRef<HTMLDivElement>(null);
+  const agent2MessagesRef = useRef<HTMLDivElement>(null);
 
-  // Update FEN when gameState changes
   useEffect(() => {
-    console.log('🎮 GameState changed:', {
-      hasFen: !!gameState?.fen,
-      fen: gameState?.fen,
-      round: gameState?.round,
-      turn: gameState?.turn,
-      fullState: gameState
-    });
-
     if (gameState?.fen) {
-      console.log('✅ Updating board to FEN:', gameState.fen);
       setCurrentFen(gameState.fen);
     }
   }, [gameState]);
 
+  useEffect(() => {
+    if (!gameState?.moveHistory) return;
+
+    const newMessages = new Map<string, AgentMessage[]>();
+
+    gameState.moveHistory.forEach((item: MoveHistoryItem) => {
+      const playerId = gameState.players.find((p: any) => p.name === item.player)?.id || item.player;
+      const messages = newMessages.get(playerId) || [];
+
+      messages.push({
+        type: 'move',
+        text: item.move,
+        timestamp: Date.now(),
+        move: item.move
+      });
+
+      if (item.commentary) {
+        messages.push({
+          type: 'commentary',
+          text: item.commentary,
+          timestamp: Date.now()
+        });
+      }
+
+      newMessages.set(playerId, messages);
+    });
+
+    setAgentMessages(newMessages);
+  }, [gameState?.moveHistory, gameState?.players]);
+
+  useEffect(() => {
+    if (agent1MessagesRef.current) {
+      agent1MessagesRef.current.scrollTop = agent1MessagesRef.current.scrollHeight;
+    }
+    if (agent2MessagesRef.current) {
+      agent2MessagesRef.current.scrollTop = agent2MessagesRef.current.scrollHeight;
+    }
+  }, [agentMessages]);
 
   if (!gameState) {
     return (
@@ -47,16 +95,77 @@ function ChessApp() {
 
   const whitePlayer = gameState.players[0];
   const blackPlayer = gameState.players[1];
-  const moveHistory: MoveHistoryItem[] = gameState.moveHistory || [];
 
   const isWhiteTurn = gameState.turn === 'white';
-  const currentPlayer = isWhiteTurn ? whitePlayer : blackPlayer;
-  const currentColor = isWhiteTurn ? 'White' : 'Black';
 
-  const getPlayerColor = (playerName: string): 'white' | 'black' | null => {
-    if (playerName === whitePlayer?.name) return 'white';
-    if (playerName === blackPlayer?.name) return 'black';
-    return null;
+  const agent1Messages = agentMessages.get(whitePlayer?.id) || [];
+  const agent2Messages = agentMessages.get(blackPlayer?.id) || [];
+
+  const renderAgentPanel = (player: any, messages: AgentMessage[], isLeft: boolean, messagesRef: React.RefObject<HTMLDivElement>) => {
+    const modelName = player?.modelName || player?.model || 'AI';
+    const color = getModelColor(modelName);
+    const isActive = gameState.status === 'active' &&
+                     ((player?.id === whitePlayer?.id && isWhiteTurn) ||
+                      (player?.id === blackPlayer?.id && !isWhiteTurn));
+
+    const lastMessage = messages[messages.length - 1];
+    const isSpeaking = lastMessage && (Date.now() - lastMessage.timestamp) < 3000;
+
+    return (
+      <div className={`agent-panel ${isLeft ? 'agent-left' : 'agent-right'} ${isActive ? 'active' : ''}`}>
+        <div className="agent-header" style={{ borderColor: color }}>
+          <div className="agent-avatar">
+            <AnimatedRobot
+              modelName={modelName}
+              isThinking={isActive}
+              isSpeaking={isSpeaking}
+              size={120}
+            />
+          </div>
+          <div className="agent-info">
+            <h3 className="agent-name">{player?.name || 'Agent'} <span className="agent-model" style={{ color: color }}>{modelName}</span></h3>
+            <div className="agent-color-badge" style={{ background: isLeft ? '#fff' : '#1a1a1a', color: isLeft ? '#000' : '#fff' }}>
+              {isLeft ? '♔ White' : '♚ Black'}
+            </div>
+          </div>
+        </div>
+
+        <div className="agent-messages" ref={messagesRef}>
+          {messages.length === 0 ? (
+            <div className="no-messages">Waiting for first move...</div>
+          ) : (
+            messages.map((msg, idx) => (
+              <div key={idx} className={`message ${msg.type}`} style={{ borderLeftColor: color }}>
+                {msg.type === 'move' ? (
+                  <div className="message-move">
+                    <span className="move-label">Move:</span>
+                    <span className="move-notation" style={{ background: `${color}22`, color: color }}>
+                      {msg.text}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="message-commentary">
+                    <span className="commentary-icon">💭</span>
+                    <span className="commentary-text">{msg.text}</span>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="agent-stats">
+          <div className="stat">
+            <span className="stat-label">Score</span>
+            <span className="stat-value">{player?.score || 0}</span>
+          </div>
+          <div className="stat">
+            <span className="stat-label">Moves</span>
+            <span className="stat-value">{messages.filter(m => m.type === 'move').length}</span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -65,167 +174,60 @@ function ChessApp() {
       gameTitle="Chess Battle"
       waiting={false}
     >
-      <div className="chess-container">
-        {/* Top: Player Info Section */}
-        <div className="players-info-bar">
-          <div className="player-info-card white-card">
-            <div className="player-badge">
-              <span className="badge-icon">♔</span>
-              <span className="badge-label">WHITE</span>
-            </div>
-            <div className="player-meta">
-              <div className="player-name">{whitePlayer?.name || 'Player 1'}</div>
-              <div className="player-model">{whitePlayer?.modelName || whitePlayer?.model || 'Unknown Model'}</div>
-            </div>
-          </div>
+      <div className="chess-arena">
+        {renderAgentPanel(whitePlayer, agent1Messages, true, agent1MessagesRef)}
 
-          <div className="vs-divider">VS</div>
-
-          <div className="player-info-card black-card">
-            <div className="player-badge">
-              <span className="badge-icon">♚</span>
-              <span className="badge-label">BLACK</span>
+        <div className="board-center">
+          <div className="board-status">
+            <div className="round-info">
+              <span className="round-label">Move</span>
+              <span className="round-number">{gameState.round || 0}</span>
             </div>
-            <div className="player-meta">
-              <div className="player-name">{blackPlayer?.name || 'Player 2'}</div>
-              <div className="player-model">{blackPlayer?.modelName || blackPlayer?.model || 'Unknown Model'}</div>
+            <div className="turn-info" style={{
+              background: isWhiteTurn ? 'rgba(255, 255, 255, 0.1)' : 'rgba(139, 92, 246, 0.2)',
+              borderColor: isWhiteTurn ? 'rgba(255, 255, 255, 0.3)' : 'rgba(139, 92, 246, 0.4)'
+            }}>
+              <span className="turn-icon">{isWhiteTurn ? '♔' : '♚'}</span>
+              <span className="turn-text">{isWhiteTurn ? 'White' : 'Black'}'s Turn</span>
             </div>
           </div>
-        </div>
 
-        {/* Main Content: Board + Sidebar */}
-        <div className="game-content">
-          {/* Left: Chess Board */}
-          <div className="board-section">
-            <div className="board-wrapper">
-              {gameState.isCheck && (
-                <div className="check-indicator">⚠️ CHECK!</div>
-              )}
-              {gameState.isCheckmate && (
-                <div className="checkmate-indicator">♔ CHECKMATE! ♔</div>
-              )}
-
-              <Chessboard
-                position={currentFen}
-                arePiecesDraggable={false}
-                animationDuration={500}
-                boardOrientation="white"
-                customDarkSquareStyle={{ backgroundColor: '#8b5cf6' }}
-                customLightSquareStyle={{ backgroundColor: '#f5f5f5' }}
-                customBoardStyle={{
-                  borderRadius: '10px',
-                  boxShadow: '0 20px 60px rgba(139, 92, 246, 0.3)'
-                }}
-              />
-
-              {/* Debug Info */}
-              <div style={{
-                marginTop: '0.5rem',
-                padding: '0.5rem',
-                background: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: '0.5rem',
-                fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.6)',
-                fontFamily: 'monospace',
-                maxWidth: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                FEN: {currentFen}
-              </div>
-            </div>
-
-            {gameState.status === 'finished' && (
-              <div className="game-result">
-                <div className="winner-banner">
-                  🏆 GAME OVER! 🏆
-                  <br />
-                  <span className="winner-name">
-                    {gameState.players.find((p: any) => p.id === gameState.winnerId)?.name}
-                  </span> wins!
-                </div>
-              </div>
+          <div className="board-wrapper">
+            {gameState.isCheck && (
+              <div className="game-alert check-alert">⚠️ CHECK!</div>
             )}
+            {gameState.isCheckmate && (
+              <div className="game-alert checkmate-alert">♔ CHECKMATE! ♔</div>
+            )}
+
+            <Chessboard
+              position={currentFen}
+              arePiecesDraggable={false}
+              animationDuration={500}
+              boardOrientation="white"
+              customDarkSquareStyle={{ backgroundColor: '#8b5cf6' }}
+              customLightSquareStyle={{ backgroundColor: '#f5f5f5' }}
+              customBoardStyle={{
+                borderRadius: '12px',
+                boxShadow: '0 25px 70px rgba(139, 92, 246, 0.4)'
+              }}
+            />
           </div>
 
-          {/* Right: Turn Info + Commentary */}
-          <div className="sidebar-section">
-            {/* Current Turn Status */}
-            <div className={`turn-status-box ${isWhiteTurn ? 'white-turn' : 'black-turn'}`}>
-              <div className="turn-header">
-                <span className="turn-icon">{isWhiteTurn ? '♔' : '♚'}</span>
-                <div className="turn-details">
-                  <div className="turn-label">{currentColor}'s Turn</div>
-                  <div className="turn-player-name">{currentPlayer?.name}</div>
-                  <div className="turn-model-name">{currentPlayer?.modelName || currentPlayer?.model || 'Unknown Model'}</div>
-                </div>
-                <div className="move-counter">Move {gameState.round || 0}</div>
-              </div>
-
-              {gameState.status === 'active' && (
-                <div className="thinking-status">
-                  <span className="thinking-dot"></span>
-                  <span className="thinking-text">AI is thinking...</span>
-                </div>
-              )}
-            </div>
-
-            {/* Commentary Feed */}
-            <div className="commentary-container">
-              <h3 className="commentary-header">
-                <span className="header-icon">💭</span>
-                Move History
-                <span className="moves-count">({moveHistory.length} moves)</span>
-              </h3>
-              <div className="commentary-list" ref={commentaryListRef}>
-                {moveHistory.length === 0 ? (
-                  <div className="no-moves">Waiting for first move...</div>
-                ) : (
-                  [...moveHistory].reverse().map((item, idx) => {
-                    const playerColor = getPlayerColor(item.player);
-                    const isLatest = idx === 0;
-                    const moveNumber = moveHistory.length - idx;
-                    return (
-                      <div
-                        key={moveHistory.length - idx - 1}
-                        className={`move-card ${playerColor}-move ${isLatest ? 'latest-move' : ''}`}
-                      >
-                        {isLatest && (
-                          <div className="latest-badge">
-                            ⚡ LATEST MOVE
-                          </div>
-                        )}
-                        <div className="move-header">
-                          <div className="move-number-badge">#{moveNumber}</div>
-                          <div className="move-player-info">
-                            <span className={`color-indicator ${playerColor}-indicator`}></span>
-                            <div className="move-player-details">
-                              <span className="move-player-name">
-                                {item.player}
-                              </span>
-                              <span className="move-player-model">
-                                {playerColor === 'white'
-                                  ? (whitePlayer?.modelName || whitePlayer?.model || 'Unknown')
-                                  : (blackPlayer?.modelName || blackPlayer?.model || 'Unknown')}
-                              </span>
-                            </div>
-                            <span className="move-color-tag">
-                              {playerColor === 'white' ? '♔ White' : '♚ Black'}
-                            </span>
-                          </div>
-                          <span className="move-notation">{item.move}</span>
-                        </div>
-                        {item.commentary && (
-                          <div className="move-commentary">"{item.commentary}"</div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
+          {gameState.status === 'finished' && (
+            <div className="game-over-overlay">
+              <div className="game-over-banner">
+                <div className="trophy-icon">🏆</div>
+                <h2>Game Over!</h2>
+                <p className="winner-name">
+                  {gameState.players.find((p: any) => p.id === gameState.winnerId)?.name} wins!
+                </p>
               </div>
             </div>
-          </div>
+          )}
         </div>
+
+        {renderAgentPanel(blackPlayer, agent2Messages, false, agent2MessagesRef)}
       </div>
     </GameLayout>
   );

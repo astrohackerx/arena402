@@ -107,10 +107,6 @@ function App() {
     };
   }, [gameState?.gameId]);
 
-  const getPlayerColor = (playerIndex: number) => {
-    return playerIndex === 0 ? 'white' : 'black';
-  };
-
   const getCurrentTurnPlayer = () => {
     if (!gameState) return null;
     const turnColor = gameState.turn === 'white' ? 0 : 1;
