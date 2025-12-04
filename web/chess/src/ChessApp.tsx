@@ -26,6 +26,7 @@ function getModelColor(modelName: string): string {
   if (model.includes('claude')) return '#d97757';
   if (model.includes('llama')) return '#0467df';
   if (model.includes('gemini')) return '#8e75ff';
+  if (model.includes('deepseek')) return '#00d4ff';
   return '#8b5cf6';
 }
 
@@ -57,6 +58,9 @@ function ChessApp() {
   const [processedEventCount, setProcessedEventCount] = useState(0);
   const agent1MessagesRef = useRef<HTMLDivElement>(null);
   const agent2MessagesRef = useRef<HTMLDivElement>(null);
+  const prizePoolRef = useRef<HTMLDivElement>(null);
+  const agent1Ref = useRef<HTMLDivElement>(null);
+  const agent2Ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (gameState?.fen) {
@@ -183,7 +187,7 @@ function ChessApp() {
   const agent1Messages = agentMessages.get(whitePlayer?.id) || [];
   const agent2Messages = agentMessages.get(blackPlayer?.id) || [];
 
-  const renderAgentPanel = (player: any, messages: AgentMessage[], isLeft: boolean, messagesRef: React.RefObject<HTMLDivElement>) => {
+  const renderAgentPanel = (player: any, messages: AgentMessage[], isLeft: boolean, messagesRef: React.RefObject<HTMLDivElement>, agentRef: React.RefObject<HTMLDivElement>) => {
     const modelName = player?.modelName || player?.model || 'AI';
     const color = getModelColor(modelName);
     const isActive = gameState.status === 'active' &&
@@ -194,7 +198,7 @@ function ChessApp() {
     const isSpeaking = lastMessage && (Date.now() - lastMessage.timestamp) < 3000;
 
     return (
-      <div className={`agent-panel ${isLeft ? 'agent-left' : 'agent-right'} ${isActive ? 'active' : ''}`}>
+      <div ref={agentRef} className={`agent-panel ${isLeft ? 'agent-left' : 'agent-right'} ${isActive ? 'active' : ''}`}>
         <div className="agent-header" style={{ borderColor: color }}>
           <div className="agent-avatar">
             <AnimatedRobot
@@ -257,7 +261,7 @@ function ChessApp() {
       waiting={false}
     >
       <div className="chess-arena">
-        {renderAgentPanel(whitePlayer, agent1Messages, true, agent1MessagesRef)}
+        {renderAgentPanel(whitePlayer, agent1Messages, true, agent1MessagesRef, agent1Ref)}
 
         <div className="board-center">
           <div className="board-status">
@@ -266,7 +270,7 @@ function ChessApp() {
               <span className="round-number">{gameState.round || 0}</span>
             </div>
 
-            <div className={`prize-pool ${prizePings.length > 0 ? 'prize-ping' : ''}`}>
+            <div ref={prizePoolRef} className={`prize-pool ${prizePings.length > 0 ? 'prize-ping' : ''}`}>
               <span className="prize-label">🏆 Prize Pool</span>
               <span className="prize-amount">{(gameState.prizePool || 0).toFixed(4)} SOL</span>
             </div>
@@ -282,13 +286,29 @@ function ChessApp() {
 
           {coinAnimations.map(coin => {
             const isFromWhite = gameState.players[0]?.id === coin.fromAgent;
+
+            // Calculate dynamic positions
+            let translateX = 0;
+            let translateY = 0;
+
+            if (prizePoolRef.current && (isFromWhite ? agent1Ref.current : agent2Ref.current)) {
+              const prizePoolRect = prizePoolRef.current.getBoundingClientRect();
+              const agentRect = (isFromWhite ? agent1Ref.current : agent2Ref.current)!.getBoundingClientRect();
+
+              // Calculate the distance from agent to prize pool
+              translateX = prizePoolRect.left + prizePoolRect.width / 2 - agentRect.left - agentRect.width / 2;
+              translateY = prizePoolRect.top + prizePoolRect.height / 2 - agentRect.top - 250; // 250 is the initial top offset
+            }
+
             return (
               <div
                 key={coin.id}
                 className={`coin-animation ${isFromWhite ? 'from-left' : 'from-right'}`}
                 style={{
-                  textShadow: '0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.6)'
-                }}
+                  textShadow: '0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.6)',
+                  '--target-x': `${translateX}px`,
+                  '--target-y': `${translateY}px`
+                } as React.CSSProperties}
               >
                 🪙
               </div>
@@ -336,7 +356,7 @@ function ChessApp() {
           )}
         </div>
 
-        {renderAgentPanel(blackPlayer, agent2Messages, false, agent2MessagesRef)}
+        {renderAgentPanel(blackPlayer, agent2Messages, false, agent2MessagesRef, agent2Ref)}
       </div>
     </GameLayout>
   );

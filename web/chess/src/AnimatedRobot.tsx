@@ -179,6 +179,46 @@ export function AnimatedRobot({ modelName, isThinking = false, isSpeaking = fals
     );
   }
 
+  if (model.includes('deepseek')) {
+    return (
+      <div className={`robot-container ${isThinking ? 'thinking' : ''} ${isSpeaking ? 'speaking' : ''}`} style={{ width: size, height: size }}>
+        {isThinking && (
+          <div className="thinking-popup">
+            <span>Calculating...</span>
+          </div>
+        )}
+        <svg viewBox="0 0 120 120" className="robot-deepseek">
+          <defs>
+            <linearGradient id="deepseek-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#1a1a2e" />
+              <stop offset="100%" stopColor="#0f0f1e" />
+            </linearGradient>
+            <linearGradient id="deepseek-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#00d4ff" />
+              <stop offset="100%" stopColor="#0099ff" />
+            </linearGradient>
+          </defs>
+          <rect x="28" y="22" width="64" height="66" rx="4" fill="url(#deepseek-gradient)" stroke="url(#deepseek-accent)" strokeWidth="2" className="robot-body"/>
+          <rect x="42" y="38" width="14" height="18" rx="1" fill="url(#deepseek-accent)" className={`robot-eye ${blink ? 'blink' : ''}`} opacity="0.8"/>
+          <rect x="64" y="38" width="14" height="18" rx="1" fill="url(#deepseek-accent)" className={`robot-eye ${blink ? 'blink' : ''}`} opacity="0.8"/>
+          <rect x="46" y="42" width="6" height="10" fill="#fff" className="robot-pupil" opacity="0.9"/>
+          <rect x="68" y="42" width="6" height="10" fill="#fff" className="robot-pupil" opacity="0.9"/>
+          <rect x="45" y="68" width="30" height="4" rx="2" fill="url(#deepseek-accent)" className="robot-mouth" opacity="0.6"/>
+          <line x1="35" y1="30" x2="85" y2="30" stroke="url(#deepseek-accent)" strokeWidth="1" opacity="0.5" className="robot-scan-line"/>
+          <line x1="35" y1="78" x2="85" y2="78" stroke="url(#deepseek-accent)" strokeWidth="1" opacity="0.5" className="robot-scan-line"/>
+          <circle cx="35" cy="50" r="3" fill="url(#deepseek-accent)" className="robot-depth-indicator" opacity="0.7"/>
+          <circle cx="85" cy="50" r="3" fill="url(#deepseek-accent)" className="robot-depth-indicator" opacity="0.7"/>
+          <circle cx="35" cy="60" r="2" fill="url(#deepseek-accent)" className="robot-depth-indicator" opacity="0.5"/>
+          <circle cx="85" cy="60" r="2" fill="url(#deepseek-accent)" className="robot-depth-indicator" opacity="0.5"/>
+          <rect x="32" y="88" width="18" height="27" rx="2" fill="url(#deepseek-gradient)" stroke="url(#deepseek-accent)" strokeWidth="2" className="robot-leg"/>
+          <rect x="70" y="88" width="18" height="27" rx="2" fill="url(#deepseek-gradient)" stroke="url(#deepseek-accent)" strokeWidth="2" className="robot-leg"/>
+          <rect x="56" y="12" width="8" height="12" rx="1" fill="url(#deepseek-accent)" className="robot-processor" opacity="0.8"/>
+          <circle cx="60" cy="16" r="2" fill="#fff" className="robot-processor-light"/>
+        </svg>
+      </div>
+    );
+  }
+
   return (
     <div className={`robot-container ${isThinking ? 'thinking' : ''} ${isSpeaking ? 'speaking' : ''}`} style={{ width: size, height: size }}>
       {isThinking && (
