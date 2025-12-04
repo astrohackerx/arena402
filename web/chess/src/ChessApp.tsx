@@ -48,6 +48,22 @@ interface PaymentNotification {
   timestamp: number;
 }
 
+interface WinnerCoinAnimation {
+  id: string;
+  toAgent: string;
+  startTime: number;
+}
+
+interface GameOverData {
+  winnerId: string | null;
+  draw?: boolean;
+  winner?: string;
+  prize?: string;
+  players?: Array<{ id: string; name: string; prize: number }>;
+  transactionId?: string;
+  transactionIds?: string[];
+}
+
 function ChessApp() {
   const { gameState, connected, events } = useGameConnection();
   const [currentFen, setCurrentFen] = useState('start');
@@ -55,6 +71,8 @@ function ChessApp() {
   const [coinAnimations, setCoinAnimations] = useState<CoinAnimation[]>([]);
   const [prizePings, setPrizePings] = useState<PrizePing[]>([]);
   const [paymentNotifications, setPaymentNotifications] = useState<PaymentNotification[]>([]);
+  const [winnerCoinAnimations, setWinnerCoinAnimations] = useState<WinnerCoinAnimation[]>([]);
+  const [gameOverData, setGameOverData] = useState<GameOverData | null>(null);
   const [processedEventCount, setProcessedEventCount] = useState(0);
   const agent1MessagesRef = useRef<HTMLDivElement>(null);
   const agent2MessagesRef = useRef<HTMLDivElement>(null);
@@ -161,6 +179,42 @@ function ChessApp() {
         setTimeout(() => {
           setCoinAnimations(prev => prev.filter(c => c.id !== coinId));
         }, 1500);
+      }
+
+      if (event.type === 'game_over') {
+        console.log('ChessApp - Game over event:', event.data);
+        setGameOverData(event.data);
+
+        // Trigger coin animations from prize pool to winner(s)
+        setTimeout(() => {
+          if (event.data.draw && event.data.players) {
+            // Draw: send coins to both players
+            event.data.players.forEach((player: any, idx: number) => {
+              const coinId = `winner-coin-${Date.now()}-${idx}`;
+              setWinnerCoinAnimations(prev => [...prev, {
+                id: coinId,
+                toAgent: player.id,
+                startTime: Date.now()
+              }]);
+
+              setTimeout(() => {
+                setWinnerCoinAnimations(prev => prev.filter(c => c.id !== coinId));
+              }, 2000);
+            });
+          } else if (event.data.winnerId) {
+            // Winner: send coins to winner
+            const coinId = `winner-coin-${Date.now()}`;
+            setWinnerCoinAnimations(prev => [...prev, {
+              id: coinId,
+              toAgent: event.data.winnerId,
+              startTime: Date.now()
+            }]);
+
+            setTimeout(() => {
+              setWinnerCoinAnimations(prev => prev.filter(c => c.id !== coinId));
+            }, 2000);
+          }
+        }, 500);
       }
     });
 
@@ -315,6 +369,38 @@ function ChessApp() {
             );
           })}
 
+          {winnerCoinAnimations.map(coin => {
+            const isToWhite = gameState.players[0]?.id === coin.toAgent;
+            const isToBlack = gameState.players[1]?.id === coin.toAgent;
+
+            // Calculate dynamic positions
+            let translateX = 0;
+            let translateY = 0;
+
+            if (prizePoolRef.current && ((isToWhite && agent1Ref.current) || (isToBlack && agent2Ref.current))) {
+              const prizePoolRect = prizePoolRef.current.getBoundingClientRect();
+              const agentRect = (isToWhite ? agent1Ref.current : agent2Ref.current)!.getBoundingClientRect();
+
+              // Calculate the distance from prize pool to agent
+              translateX = agentRect.left + agentRect.width / 2 - prizePoolRect.left - prizePoolRect.width / 2;
+              translateY = agentRect.top + 100 - prizePoolRect.top - prizePoolRect.height / 2;
+            }
+
+            return (
+              <div
+                key={coin.id}
+                className={`winner-coin-animation ${isToWhite ? 'to-left' : 'to-right'}`}
+                style={{
+                  textShadow: '0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.6)',
+                  '--target-x': `${translateX}px`,
+                  '--target-y': `${translateY}px`
+                } as React.CSSProperties}
+              >
+                🪙
+              </div>
+            );
+          })}
+
           {paymentNotifications.map(notification => (
             <div key={notification.id} className="payment-notification">
               💰 {notification.agentName} paid {notification.amount.toFixed(4)} SOL
@@ -343,14 +429,65 @@ function ChessApp() {
             />
           </div>
 
-          {gameState.status === 'finished' && (
+          {gameState.status === 'finished' && gameOverData && (
             <div className="game-over-overlay">
               <div className="game-over-banner">
-                <div className="trophy-icon">🏆</div>
-                <h2>Game Over!</h2>
-                <p className="winner-name">
-                  {gameState.players.find((p: any) => p.id === gameState.winnerId)?.name} wins!
-                </p>
+                {gameOverData.draw ? (
+                  <>
+                    <div className="trophy-icon">🤝</div>
+                    <h2>Draw!</h2>
+                    <p className="game-over-subtitle">Prize pool split equally</p>
+                    <div className="prize-distribution">
+                      {gameOverData.players?.map((player) => (
+                        <div key={player.id} className="player-prize">
+                          <span className="player-prize-name">
+                            {player.name}
+                          </span>
+                          <span className="player-prize-amount">
+                            {player.prize.toFixed(4)} SOL
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {gameOverData.transactionIds && (
+                      <div className="transaction-links">
+                        {gameOverData.transactionIds.map((txId, idx) => (
+                          <a
+                            key={idx}
+                            href={`https://explorer.solana.com/tx/${txId}?cluster=devnet`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="transaction-link"
+                          >
+                            View Transaction {idx + 1} ↗
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="trophy-icon">🏆</div>
+                    <h2>Game Over!</h2>
+                    <p className="winner-name">
+                      {gameOverData.winner} wins!
+                    </p>
+                    <div className="winner-prize">
+                      <span className="winner-prize-label">Prize:</span>
+                      <span className="winner-prize-amount">{gameOverData.prize} SOL</span>
+                    </div>
+                    {gameOverData.transactionId && (
+                      <a
+                        href={`https://explorer.solana.com/tx/${gameOverData.transactionId}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="transaction-link"
+                      >
+                        View Transaction ↗
+                      </a>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )}

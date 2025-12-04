@@ -11,6 +11,22 @@ export class BlockchainError extends Error {
   }
 }
 
+function isTransientError(error: unknown): boolean {
+  const errorStr = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    errorStr.includes('fetch failed') ||
+    errorStr.includes('network') ||
+    errorStr.includes('timeout') ||
+    errorStr.includes('econnrefused') ||
+    errorStr.includes('enotfound') ||
+    errorStr.includes('etimedout') ||
+    errorStr.includes('429') ||
+    errorStr.includes('503') ||
+    errorStr.includes('rate limit') ||
+    errorStr.includes('blockhash not found')
+  );
+}
+
 export async function retryBlockchainOperation<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
@@ -23,11 +39,21 @@ export async function retryBlockchainOperation<T>(
       return await operation();
     } catch (error) {
       lastError = error;
-      console.log(`⚠️  Attempt ${attempt}/${maxRetries} failed, retrying in ${delayMs}ms...`);
+      const isTransient = isTransientError(error);
+
+      if (!isTransient && attempt < maxRetries) {
+        console.log(`⚠️  Non-transient error, skipping retries`);
+        throw error;
+      }
 
       if (attempt < maxRetries) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.log(`⚠️  Attempt ${attempt}/${maxRetries} failed: ${errorMsg.slice(0, 80)}`);
+        console.log(`   Retrying in ${(delayMs / 1000).toFixed(1)}s...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
         delayMs *= 2;
+      } else {
+        console.log(`❌ All ${maxRetries} attempts failed`);
       }
     }
   }
@@ -65,19 +91,35 @@ export async function safeSendTransaction(
 ): Promise<TransactionSignature> {
   try {
     return await retryBlockchainOperation(async () => {
+      // Get fresh blockhash for each retry attempt
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+      transaction.recentBlockhash = blockhash;
+      transaction.lastValidBlockHeight = lastValidBlockHeight;
+
       const signature = await connection.sendTransaction(transaction, signers, {
         skipPreflight: false,
-        preflightCommitment: 'confirmed'
+        preflightCommitment: 'confirmed',
+        maxRetries: 3
       });
 
-      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+      // Wait for confirmation with timeout
+      const confirmation = await Promise.race([
+        connection.confirmTransaction({
+          signature,
+          blockhash,
+          lastValidBlockHeight
+        }, 'confirmed'),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Confirmation timeout')), 30000)
+        )
+      ]);
 
       if (confirmation.value.err) {
         throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
       }
 
       return signature;
-    }, 2, 1000);
+    }, 4, 2000);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new BlockchainError(

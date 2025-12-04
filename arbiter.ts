@@ -414,30 +414,100 @@ async function endGame(gameId: string) {
   const { game } = gameSession;
   const state = game.getPublicState();
   const winnerId = state.winnerId;
-
-  if (!winnerId) {
-    console.error('❌ No winner determined');
-    endingGames.delete(gameId);
-    return;
-  }
-
-  const winner = players.get(winnerId);
-  if (!winner) {
-    console.error('❌ Winner not found');
-    endingGames.delete(gameId);
-    return;
-  }
-
-  const prizeAmount = ENTRY_FEE * players.size * 0.95;
-  const loserIds = state.players.filter((p: any) => p.id !== winnerId).map((p: any) => p.id);
-
-  const winnerDisplay = winner.modelName ? `${winner.name} (${winner.modelName})` : winner.name;
-  console.log(`\n🏆 WINNER: ${winnerDisplay}`);
-  console.log(`💰 Prize: ${prizeAmount} SOL`);
+  const totalPrizePool = gameSession.prizePool;
 
   try {
+    if (!winnerId) {
+      console.log(`\n🤝 DRAW! Splitting prize pool...`);
+
+      const halfPrize = totalPrizePool / 2;
+      const playerIds = state.players.map((p: any) => p.id);
+
+      if (playerIds.length !== 2) {
+        console.error('❌ Expected 2 players for draw payout');
+        return;
+      }
+
+      const player1 = players.get(playerIds[0]);
+      const player2 = players.get(playerIds[1]);
+
+      if (!player1 || !player2) {
+        console.error('❌ Players not found');
+        return;
+      }
+
+      const player1Display = player1.modelName ? `${player1.name} (${player1.modelName})` : player1.name;
+      const player2Display = player2.modelName ? `${player2.name} (${player2.modelName})` : player2.name;
+
+      console.log(`💰 Each player receives: ${halfPrize.toFixed(6)} SOL`);
+
+      const lamportsPerPlayer = Math.floor(halfPrize * LAMPORTS_PER_SOL);
+
+      const tx1 = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: wallet.publicKey,
+          toPubkey: new PublicKey(player1.wallet),
+          lamports: lamportsPerPlayer
+        })
+      );
+
+      const signature1 = await safeSendTransaction(
+        connection,
+        tx1,
+        [wallet],
+        'draw payout player 1'
+      );
+
+      console.log(`✅ Paid ${player1Display}: ${signature1.slice(0, 16)}...`);
+
+      const tx2 = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: wallet.publicKey,
+          toPubkey: new PublicKey(player2.wallet),
+          lamports: lamportsPerPlayer
+        })
+      );
+
+      const signature2 = await safeSendTransaction(
+        connection,
+        tx2,
+        [wallet],
+        'draw payout player 2'
+      );
+
+      console.log(`✅ Paid ${player2Display}: ${signature2.slice(0, 16)}...\n`);
+
+      statsTracker.recordGameEnd(playerIds[0], playerIds[1], halfPrize, state.round);
+
+      broadcast('game_over', {
+        gameId,
+        winnerId: null,
+        draw: true,
+        players: [
+          { id: playerIds[0], name: player1.name, prize: halfPrize },
+          { id: playerIds[1], name: player2.name, prize: halfPrize }
+        ],
+        transactionIds: [signature1, signature2],
+        finalState: state
+      });
+
+      return;
+    }
+
+    const winner = players.get(winnerId);
+    if (!winner) {
+      console.error('❌ Winner not found');
+      return;
+    }
+
+    const loserIds = state.players.filter((p: any) => p.id !== winnerId).map((p: any) => p.id);
+
+    const winnerDisplay = winner.modelName ? `${winner.name} (${winner.modelName})` : winner.name;
+    console.log(`\n🏆 WINNER: ${winnerDisplay}`);
+    console.log(`💰 Prize: ${totalPrizePool.toFixed(6)} SOL`);
+
     const recipientPubkey = new PublicKey(winner.wallet);
-    const lamports = Math.floor(prizeAmount * LAMPORTS_PER_SOL);
+    const lamports = Math.floor(totalPrizePool * LAMPORTS_PER_SOL);
 
     const transaction = new Transaction().add(
       SystemProgram.transfer({
@@ -457,14 +527,14 @@ async function endGame(gameId: string) {
     console.log(`✅ Prize paid: ${signature.slice(0, 16)}...\n`);
 
     if (loserIds.length > 0) {
-      statsTracker.recordGameEnd(winnerId, loserIds[0], prizeAmount, state.round);
+      statsTracker.recordGameEnd(winnerId, loserIds[0], totalPrizePool, state.round);
     }
 
     broadcast('game_over', {
       gameId,
       winnerId,
       winner: winner.name,
-      prize: prizeAmount.toString(),
+      prize: totalPrizePool.toString(),
       transactionId: signature,
       finalState: state
     });

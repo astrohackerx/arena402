@@ -6,6 +6,7 @@ import { config } from 'dotenv';
 import { StrategyRegistry } from './strategies/strategy-registry.js';
 import { safeGetBalance, safeSendTransaction, handleBlockchainError } from './error-handler.js';
 import { createRateLimiter } from './rate-limiter.js';
+import { fetchWithRetry, waitForTransactionConfirmation } from './retry-handler.js';
 
 config({ path: '.env' });
 
@@ -137,6 +138,8 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
 
       console.log(`✅ Payment sent: ${signature.slice(0, 16)}...`);
 
+      await waitForTransactionConfirmation(signature, 3000);
+
       const payment = {
         spl402Version: 1,
         scheme: requirement.scheme || 'transfer',
@@ -152,20 +155,29 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
 
       myStats.totalPaid += requirement.amount;
 
-      // Retry move with payment proof
-      moveResponse = await fetch(`${ARBITER_URL}/move`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Payment': JSON.stringify(payment)
+      // Retry move with payment proof (with retry logic for verification failures)
+      console.log(`   Submitting move with payment proof...`);
+      moveResponse = await fetchWithRetry(
+        `${ARBITER_URL}/move`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Payment': JSON.stringify(payment)
+          },
+          body: JSON.stringify({
+            agentId: myAgentId,
+            gameId: currentGameId,
+            move: decision.move,
+            commentary: decision.commentary
+          })
         },
-        body: JSON.stringify({
-          agentId: myAgentId,
-          gameId: currentGameId,
-          move: decision.move,
-          commentary: decision.commentary
-        })
-      });
+        {
+          maxAttempts: 4,
+          delayMs: 2000,
+          backoffMultiplier: 1.5
+        }
+      );
 
       console.log(`   Response status after payment: ${moveResponse.status}`);
     }
@@ -307,6 +319,8 @@ app.listen(AGENT_PORT, async () => {
 
         console.log(`✅ Payment sent: ${signature.slice(0, 16)}...`);
 
+        await waitForTransactionConfirmation(signature, 3000);
+
         // Build spl402 payment object as expected by middleware
         const payment = {
           spl402Version: 1,
@@ -321,14 +335,23 @@ app.listen(AGENT_PORT, async () => {
           }
         };
 
-        const retryResponse = await fetch(`${ARBITER_URL}/register`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Payment': JSON.stringify(payment)
+        console.log(`   Submitting registration with payment proof...`);
+        const retryResponse = await fetchWithRetry(
+          `${ARBITER_URL}/register`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Payment': JSON.stringify(payment)
+            },
+            body: JSON.stringify(registerPayload)
           },
-          body: JSON.stringify(registerPayload)
-        });
+          {
+            maxAttempts: 4,
+            delayMs: 2000,
+            backoffMultiplier: 1.5
+          }
+        );
 
         const result: unknown = await retryResponse.json();
         const typedResult = result as Record<string, unknown>;
