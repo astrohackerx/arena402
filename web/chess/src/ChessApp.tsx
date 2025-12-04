@@ -40,12 +40,21 @@ interface PrizePing {
   timestamp: number;
 }
 
+interface PaymentNotification {
+  id: string;
+  agentName: string;
+  amount: number;
+  timestamp: number;
+}
+
 function ChessApp() {
   const { gameState, connected, events } = useGameConnection();
   const [currentFen, setCurrentFen] = useState('start');
   const [agentMessages, setAgentMessages] = useState<Map<string, AgentMessage[]>>(new Map());
   const [coinAnimations, setCoinAnimations] = useState<CoinAnimation[]>([]);
   const [prizePings, setPrizePings] = useState<PrizePing[]>([]);
+  const [paymentNotifications, setPaymentNotifications] = useState<PaymentNotification[]>([]);
+  const [processedEventCount, setProcessedEventCount] = useState(0);
   const agent1MessagesRef = useRef<HTMLDivElement>(null);
   const agent2MessagesRef = useRef<HTMLDivElement>(null);
 
@@ -95,32 +104,64 @@ function ChessApp() {
   }, [agentMessages]);
 
   useEffect(() => {
-    if (!events) return;
+    if (!events || events.length === 0) return;
+    if (events.length <= processedEventCount) return;
 
-    const lastEvent = events[events.length - 1];
-    if (lastEvent?.type === 'payment_made') {
-      const coinId = `coin-${Date.now()}-${Math.random()}`;
-      setCoinAnimations(prev => [...prev, {
-        id: coinId,
-        fromAgent: lastEvent.data.agentId,
-        startTime: Date.now()
-      }]);
+    // Process all new unprocessed events
+    const unprocessedEvents = events.slice(processedEventCount);
+    console.log(`ChessApp - Processing ${unprocessedEvents.length} new events from ${processedEventCount} to ${events.length}`);
 
-      // Add prize pool ping effect after coin arrives
-      setTimeout(() => {
-        const pingId = `ping-${Date.now()}`;
-        setPrizePings(prev => [...prev, { id: pingId, timestamp: Date.now() }]);
+    unprocessedEvents.forEach((event, index) => {
+      console.log(`ChessApp - Event ${processedEventCount + index}:`, event.type, event);
+
+      if (event.type === 'payment_made') {
+        console.log('ChessApp - Creating payment notification for:', event.data);
+
+        const coinId = `coin-${Date.now()}-${Math.random()}-${index}`;
+        setCoinAnimations(prev => [...prev, {
+          id: coinId,
+          fromAgent: event.data.agentId,
+          startTime: Date.now()
+        }]);
+
+        const agent = gameState?.players?.find((p: any) => p.id === event.data.agentId);
+        const notificationId = `payment-${Date.now()}-${index}`;
+
+        console.log('ChessApp - Agent found:', agent);
+
+        setPaymentNotifications(prev => {
+          const newNotifications = [...prev, {
+            id: notificationId,
+            agentName: agent?.name || 'Agent',
+            amount: event.data.amount,
+            timestamp: Date.now()
+          }];
+          console.log('ChessApp - Payment notifications:', newNotifications);
+          return newNotifications;
+        });
 
         setTimeout(() => {
-          setPrizePings(prev => prev.filter(p => p.id !== pingId));
-        }, 600);
-      }, 1200);
+          setPaymentNotifications(prev => prev.filter(n => n.id !== notificationId));
+        }, 3000);
 
-      setTimeout(() => {
-        setCoinAnimations(prev => prev.filter(c => c.id !== coinId));
-      }, 1500);
-    }
-  }, [events]);
+        // Add prize pool ping effect after coin arrives
+        setTimeout(() => {
+          const pingId = `ping-${Date.now()}-${index}`;
+          setPrizePings(prev => [...prev, { id: pingId, timestamp: Date.now() }]);
+
+          setTimeout(() => {
+            setPrizePings(prev => prev.filter(p => p.id !== pingId));
+          }, 600);
+        }, 1200);
+
+        setTimeout(() => {
+          setCoinAnimations(prev => prev.filter(c => c.id !== coinId));
+        }, 1500);
+      }
+    });
+
+    setProcessedEventCount(events.length);
+  }, [events, gameState, processedEventCount]);
 
   if (!gameState) {
     return (
@@ -253,6 +294,12 @@ function ChessApp() {
               </div>
             );
           })}
+
+          {paymentNotifications.map(notification => (
+            <div key={notification.id} className="payment-notification">
+              💰 {notification.agentName} paid {notification.amount.toFixed(4)} SOL
+            </div>
+          ))}
 
           <div className="board-wrapper">
             {gameState.isCheck && (

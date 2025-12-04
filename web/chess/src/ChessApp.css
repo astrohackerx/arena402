@@ -283,6 +283,46 @@
   filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
 }
 
+.payment-notification {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  color: #1a1a1a;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1.2rem;
+  z-index: 200;
+  box-shadow: 0 8px 32px rgba(255, 215, 0, 0.6);
+  animation: paymentNotificationPulse 3s ease-in-out;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@keyframes paymentNotificationPulse {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px) scale(0.9);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1.05);
+  }
+  20% {
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.9);
+  }
+}
+
 .coin-animation.from-left {
   left: 50px;
   top: 250px;
