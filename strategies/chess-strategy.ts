@@ -125,7 +125,7 @@ Commentary: Forced checkmate sequence. Your king safety was... suboptimal.`;
           }
         ],
         temperature: 0.8,
-        max_tokens: 200
+        max_tokens: isGrok ? 100 : 200
       });
 
       const fullResponse = response.choices[0]?.message?.content || '';
