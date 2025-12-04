@@ -1,4 +1,9 @@
 import { BaseGame, GameConfig, PlayerMove, RoundResult, MoveValidation } from './base-game.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const MOVE_PRICE = parseFloat(process.env.MOVE_PRICE || '0');
 
 const MOVE_ICONS = {
   rock: '🪨',
@@ -40,6 +45,7 @@ export class RockPaperScissorsGame extends BaseGame {
     minPlayers: 2,
     maxPlayers: 2,
     entryFee: 0.001,
+    movePrice: MOVE_PRICE,
     winCondition: 'First to 5 wins',
     maxRounds: 9
   };

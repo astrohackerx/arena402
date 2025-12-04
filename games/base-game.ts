@@ -5,6 +5,7 @@ export interface GameConfig {
   minPlayers: number;
   maxPlayers: number;
   entryFee: number;
+  movePrice?: number;
   winCondition: string;
   maxRounds?: number;
   turnBased?: boolean;

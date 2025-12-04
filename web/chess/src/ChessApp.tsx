@@ -29,10 +29,23 @@ function getModelColor(modelName: string): string {
   return '#8b5cf6';
 }
 
+interface CoinAnimation {
+  id: string;
+  fromAgent: string;
+  startTime: number;
+}
+
+interface PrizePing {
+  id: string;
+  timestamp: number;
+}
+
 function ChessApp() {
-  const { gameState, connected } = useGameConnection();
+  const { gameState, connected, events } = useGameConnection();
   const [currentFen, setCurrentFen] = useState('start');
   const [agentMessages, setAgentMessages] = useState<Map<string, AgentMessage[]>>(new Map());
+  const [coinAnimations, setCoinAnimations] = useState<CoinAnimation[]>([]);
+  const [prizePings, setPrizePings] = useState<PrizePing[]>([]);
   const agent1MessagesRef = useRef<HTMLDivElement>(null);
   const agent2MessagesRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +93,34 @@ function ChessApp() {
       agent2MessagesRef.current.scrollTop = agent2MessagesRef.current.scrollHeight;
     }
   }, [agentMessages]);
+
+  useEffect(() => {
+    if (!events) return;
+
+    const lastEvent = events[events.length - 1];
+    if (lastEvent?.type === 'payment_made') {
+      const coinId = `coin-${Date.now()}-${Math.random()}`;
+      setCoinAnimations(prev => [...prev, {
+        id: coinId,
+        fromAgent: lastEvent.data.agentId,
+        startTime: Date.now()
+      }]);
+
+      // Add prize pool ping effect after coin arrives
+      setTimeout(() => {
+        const pingId = `ping-${Date.now()}`;
+        setPrizePings(prev => [...prev, { id: pingId, timestamp: Date.now() }]);
+
+        setTimeout(() => {
+          setPrizePings(prev => prev.filter(p => p.id !== pingId));
+        }, 600);
+      }, 1200);
+
+      setTimeout(() => {
+        setCoinAnimations(prev => prev.filter(c => c.id !== coinId));
+      }, 1500);
+    }
+  }, [events]);
 
   if (!gameState) {
     return (
@@ -155,13 +196,13 @@ function ChessApp() {
         </div>
 
         <div className="agent-stats">
-          <div className="stat">
-            <span className="stat-label">Score</span>
-            <span className="stat-value">{player?.score || 0}</span>
+          <div className="stat balance-stat">
+            <span className="stat-label">💰 Balance</span>
+            <span className="stat-value balance-value">{(player?.balance || 0).toFixed(4)} SOL</span>
           </div>
-          <div className="stat">
-            <span className="stat-label">Moves</span>
-            <span className="stat-value">{messages.filter(m => m.type === 'move').length}</span>
+          <div className="stat spent-stat">
+            <span className="stat-label">💸 Total Spent</span>
+            <span className="stat-value spent-value">{(player?.totalSpent || 0).toFixed(4)} SOL</span>
           </div>
         </div>
       </div>
@@ -183,6 +224,12 @@ function ChessApp() {
               <span className="round-label">Move</span>
               <span className="round-number">{gameState.round || 0}</span>
             </div>
+
+            <div className={`prize-pool ${prizePings.length > 0 ? 'prize-ping' : ''}`}>
+              <span className="prize-label">🏆 Prize Pool</span>
+              <span className="prize-amount">{(gameState.prizePool || 0).toFixed(4)} SOL</span>
+            </div>
+
             <div className="turn-info" style={{
               background: isWhiteTurn ? 'rgba(255, 255, 255, 0.1)' : 'rgba(139, 92, 246, 0.2)',
               borderColor: isWhiteTurn ? 'rgba(255, 255, 255, 0.3)' : 'rgba(139, 92, 246, 0.4)'
@@ -191,6 +238,21 @@ function ChessApp() {
               <span className="turn-text">{isWhiteTurn ? 'White' : 'Black'}'s Turn</span>
             </div>
           </div>
+
+          {coinAnimations.map(coin => {
+            const isFromWhite = gameState.players[0]?.id === coin.fromAgent;
+            return (
+              <div
+                key={coin.id}
+                className={`coin-animation ${isFromWhite ? 'from-left' : 'from-right'}`}
+                style={{
+                  textShadow: '0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.6)'
+                }}
+              >
+                🪙
+              </div>
+            );
+          })}
 
           <div className="board-wrapper">
             {gameState.isCheck && (

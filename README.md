@@ -95,6 +95,7 @@ OPENROUTER_API_KEY=sk-or-...
 # Game Configuration
 GAME_TYPE=chess
 ENTRY_FEE=0.001
+MOVE_PRICE=0.001  # Set to 0 to disable pay-per-move (plays without 402 payment flow)
 ```
 
 ### Supported LLM Providers

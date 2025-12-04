@@ -44,10 +44,13 @@ if (!gameConfig) {
   throw new Error(`Invalid GAME_TYPE in .env: ${GAME_TYPE}. Available: ${GameRegistry.getAllGames().map(g => g.id).join(', ')}`);
 }
 
+const MOVE_PRICE = gameConfig.movePrice || 0;
+
 console.log(`\n🏛️  ARENA402 ARBITER`);
 console.log(`   Wallet: ${wallet.publicKey.toString()}`);
 console.log(`   Network: ${NETWORK}`);
 console.log(`   Entry Fee: ${ENTRY_FEE} SOL`);
+console.log(`   Move Price: ${MOVE_PRICE} SOL`);
 console.log(`   Game: ${gameConfig.name}`);
 console.log(`   Using: Official spl402 SDK\n`);
 
@@ -61,7 +64,7 @@ const spl402Server = createServer({
     { path: '/games', price: 0, method: 'GET' },
     { path: '/events', price: 0, method: 'GET' },
     { path: '/set-webhook', price: 0, method: 'POST' },
-    { path: '/move', price: 0, method: 'POST' },
+    { path: '/move', price: MOVE_PRICE, method: 'POST' },
     { path: '/stats', price: 0, method: 'GET' },
     { path: '/current-game', price: 0, method: 'GET' }
   ]
@@ -75,12 +78,15 @@ interface PlayerInfo {
   paid: boolean;
   agentUrl?: string;
   modelName?: string;
+  balance?: number;
+  totalSpent?: number;
 }
 
 interface GameSession {
   game: BaseGame;
   gameType: string;
   players: string[];
+  prizePool: number;
 }
 
 const players = new Map<string, PlayerInfo>();
@@ -124,7 +130,9 @@ app.post('/register', registrationLimiter.middleware(), async (req, res) => {
       wallet: agentWallet,
       paid: true,
       agentUrl,
-      modelName
+      modelName,
+      balance: 0,
+      totalSpent: 0
     });
 
     statsTracker.initializePlayer(agentId, agentName, ENTRY_FEE);
@@ -170,18 +178,37 @@ function startGame(gameType: string = GAME_TYPE) {
   }
 
   const gameConfig = game.getConfig();
-  games.set(gameId, { game, gameType, players: playerArray.map(p => p.id) });
+  const initialPrizePool = ENTRY_FEE * playerArray.length * 0.95;
+  games.set(gameId, {
+    game,
+    gameType,
+    players: playerArray.map(p => p.id),
+    prizePool: initialPrizePool
+  });
 
   const initialState = game.getPublicState();
+
+  const playersWithBalances = playerArray.map(p => {
+    const playerInfo = players.get(p.id);
+    return {
+      ...p,
+      score: 0,
+      balance: playerInfo?.balance || 0,
+      totalSpent: playerInfo?.totalSpent || 0
+    };
+  });
 
   broadcast('game_started', {
     gameId,
     gameType,
     gameName: gameConfig.name,
-    players: playerArray.map(p => ({ ...p, score: 0 })),
+    players: playersWithBalances,
     entryFee: ENTRY_FEE,
+    movePrice: gameConfig.movePrice || 0,
     maxRounds: gameConfig.maxRounds,
     winCondition: gameConfig.winCondition,
+    prizePool: initialPrizePool,
+    arbiterWallet: wallet.publicKey.toString(),
     ...initialState
   });
 
@@ -219,7 +246,10 @@ async function sendTaskToPlayer(playerId: string, gameState: any) {
   }
 
   const taskPayload = {
-    gameState: gameState,
+    gameState: {
+      ...gameState,
+      arbiterWallet: wallet.publicKey.toString()
+    },
     type: 'game_move',
     instruction: gameState.instructions || 'Make your move'
   };
@@ -243,7 +273,8 @@ async function sendTaskToPlayer(playerId: string, gameState: any) {
   }
 }
 
-app.post('/move', moveLimiter.middleware(), (req, res) => {
+
+app.post('/move', moveLimiter.middleware(), async (req, res) => {
   try {
     const validated = validateMoveRequest(req.body);
     const { agentId, move, gameId } = validated;
@@ -255,6 +286,35 @@ app.post('/move', moveLimiter.middleware(), (req, res) => {
     }
 
     const { game } = gameSession;
+
+    // Track payment if move price is set (spl402 already handled payment verification)
+    if (MOVE_PRICE > 0) {
+      const player = players.get(agentId);
+      if (player) {
+        player.totalSpent = (player.totalSpent || 0) + MOVE_PRICE;
+        gameSession.prizePool += MOVE_PRICE * 0.95;
+
+        try {
+          const playerWallet = new PublicKey(player.wallet);
+          const balance = await connection.getBalance(playerWallet);
+          player.balance = balance / LAMPORTS_PER_SOL;
+        } catch (e) {
+          console.error('Failed to fetch player balance');
+        }
+
+        broadcast('payment_made', {
+          agentId,
+          gameId,
+          amount: MOVE_PRICE,
+          prizePool: gameSession.prizePool,
+          agentBalance: player.balance,
+          agentTotalSpent: player.totalSpent
+        });
+
+        console.log(`💰 LLM payment received: ${MOVE_PRICE} SOL from ${player.name}`);
+      }
+    }
+
     const moveResult = game.submitMove(agentId, move, commentary);
 
     if (!moveResult.success) {
@@ -266,10 +326,21 @@ app.post('/move', moveLimiter.middleware(), (req, res) => {
 
     res.json({ success: true, roundComplete, gameOver: game.getStatus() === 'finished' });
 
-    // Broadcast move update to web clients
+    // Broadcast move update to web clients with player balances
+    const playersWithBalances = state.players.map((p: any) => {
+      const playerInfo = players.get(p.id);
+      return {
+        ...p,
+        balance: playerInfo?.balance || 0,
+        totalSpent: playerInfo?.totalSpent || 0
+      };
+    });
+
     broadcast('move_made', {
       gameId,
-      ...state
+      ...state,
+      players: playersWithBalances,
+      prizePool: gameSession.prizePool
     });
 
     if (roundComplete) {

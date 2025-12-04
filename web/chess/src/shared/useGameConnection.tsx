@@ -29,6 +29,7 @@ export interface GameState {
 export function useGameConnection(arbiterUrl: string = 'http://localhost:3000') {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [connected, setConnected] = useState(false);
+  const [events, setEvents] = useState<Array<{type: string; data: any}>>([]);
 
   useEffect(() => {
     const eventSource = new EventSource(`${arbiterUrl}/events`);
@@ -42,22 +43,51 @@ export function useGameConnection(arbiterUrl: string = 'http://localhost:3000') 
       const data = JSON.parse(e.data);
       console.log('Game started:', data);
       setGameState(data);
+      setEvents(prev => [...prev, { type: 'game_started', data }]);
     });
 
     eventSource.addEventListener('move_made', (e) => {
       const data = JSON.parse(e.data);
       console.log('Move made:', data);
       setGameState(data);
+      setEvents(prev => [...prev, { type: 'move_made', data }]);
+    });
+
+    eventSource.addEventListener('payment_made', (e) => {
+      const data = JSON.parse(e.data);
+      console.log('Payment made:', data);
+      setEvents(prev => [...prev, { type: 'payment_made', data }]);
+
+      if (gameState) {
+        const updatedPlayers = gameState.players.map(p => {
+          if (p.id === data.agentId) {
+            return {
+              ...p,
+              balance: data.agentBalance,
+              totalSpent: data.agentTotalSpent
+            };
+          }
+          return p;
+        });
+
+        setGameState({
+          ...gameState,
+          players: updatedPlayers,
+          prizePool: data.prizePool
+        });
+      }
     });
 
     eventSource.addEventListener('round_result', (e) => {
       const data = JSON.parse(e.data);
       console.log('Round result:', data);
+      setEvents(prev => [...prev, { type: 'round_result', data }]);
     });
 
     eventSource.addEventListener('game_over', (e) => {
       const data = JSON.parse(e.data);
       console.log('Game over:', data);
+      setEvents(prev => [...prev, { type: 'game_over', data }]);
       if (gameState) {
         setGameState({
           ...gameState,
@@ -77,5 +107,5 @@ export function useGameConnection(arbiterUrl: string = 'http://localhost:3000') 
     };
   }, [arbiterUrl]);
 
-  return { gameState, connected };
+  return { gameState, connected, events };
 }

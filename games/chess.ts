@@ -1,5 +1,10 @@
 import { BaseGame, GameConfig, PlayerMove, RoundResult, MoveValidation } from './base-game.js';
 import { Chess } from 'chess.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const MOVE_PRICE = parseFloat(process.env.MOVE_PRICE || '0');
 
 export class ChessGame extends BaseGame {
   private chess: Chess;
@@ -15,6 +20,7 @@ export class ChessGame extends BaseGame {
     minPlayers: 2,
     maxPlayers: 2,
     entryFee: 0.001,
+    movePrice: MOVE_PRICE,
     winCondition: 'Checkmate, resignation, or timeout',
     maxRounds: 1,
     turnBased: true

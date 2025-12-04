@@ -81,6 +81,7 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
     throw new Error(`No strategy available for game type: ${gameType}`);
   }
 
+  console.log(`\n🧠 Making LLM request to decide move...`);
   const decision = await strategy.decideMove(gameState, myAgentId);
 
   const score = gameState.players.find((p: any) => p.id === myAgentId)?.score || 0;
@@ -88,12 +89,12 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
 
   console.log(`   Round ${gameState.round}/${gameState.maxRounds} | Score: ${score} - ${opponentScore}`);
 
-  console.log(`\n📤 Submitting move to arbiter...`);
+  console.log(`\n📤 Submitting move to arbiter (payment for LLM computation)...`);
   console.log(`   Agent: ${myAgentId}`);
   console.log(`   Game: ${currentGameId}`);
   console.log(`   Move: ${decision.move}`);
 
-  const moveResponse = await fetch(`${ARBITER_URL}/move`, {
+  let moveResponse = await fetch(`${ARBITER_URL}/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -105,6 +106,70 @@ async function handleGameTask(gameState: any): Promise<{ move: string; result: a
   });
 
   console.log(`   Response status: ${moveResponse.status}`);
+
+  // Handle 402 Payment Required via spl402
+  if (moveResponse.status === 402) {
+    const body: unknown = await moveResponse.json();
+    const requirement = (body as Record<string, any>)?.payment;
+
+    if (requirement) {
+      console.log(`💳 Payment required for LLM computation`);
+      console.log(`   Amount: ${requirement.amount} SOL`);
+
+      const lamports = Math.floor(Number(requirement.amount) * LAMPORTS_PER_SOL);
+      const recipientPubkey = new PublicKey(String(requirement.recipient));
+
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: wallet.publicKey,
+          toPubkey: recipientPubkey,
+          lamports
+        })
+      );
+
+      console.log(`💸 Sending payment...`);
+      const signature = await safeSendTransaction(
+        connection,
+        transaction,
+        [wallet],
+        'LLM computation payment'
+      );
+
+      console.log(`✅ Payment sent: ${signature.slice(0, 16)}...`);
+
+      const payment = {
+        spl402Version: 1,
+        scheme: requirement.scheme || 'transfer',
+        network: requirement.network,
+        payload: {
+          from: wallet.publicKey.toBase58(),
+          to: requirement.recipient,
+          amount: requirement.amount,
+          signature,
+          timestamp: Date.now()
+        }
+      };
+
+      myStats.totalPaid += requirement.amount;
+
+      // Retry move with payment proof
+      moveResponse = await fetch(`${ARBITER_URL}/move`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Payment': JSON.stringify(payment)
+        },
+        body: JSON.stringify({
+          agentId: myAgentId,
+          gameId: currentGameId,
+          move: decision.move,
+          commentary: decision.commentary
+        })
+      });
+
+      console.log(`   Response status after payment: ${moveResponse.status}`);
+    }
+  }
 
   const moveResult: unknown = await moveResponse.json();
   const typedResult = moveResult as Record<string, unknown>;
